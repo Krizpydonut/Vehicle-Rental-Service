@@ -67,19 +67,6 @@ def init_db():
     """)
     conn.close()
 
-def fix_db():
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-    try:
-        # Try to add the missing column
-        cur.execute("ALTER TABLE Maintenance ADD COLUMN checklist TEXT")
-        conn.commit()
-        print("Fixed: Added 'checklist' column.")
-    except sqlite3.OperationalError as e:
-        # This error means the column likely already exists or the table is missing
-        print(f"Database message: {e}")
-    conn.close()
-
 def add_vehicle(model, plate, vtype, daily_rate):
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
@@ -98,8 +85,6 @@ def add_vehicle(model, plate, vtype, daily_rate):
 def is_vehicle_available(vehicle_id, requested_start, requested_end):
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    
-    # 1. Check Maintenance Status
     # If a vehicle is in active maintenance, it is unavailable regardless of dates.
     cur.execute("SELECT count(*) FROM Maintenance WHERE vehicle_id=? AND status='active'", (vehicle_id,))
     in_maintenance = cur.fetchone()[0]
@@ -107,7 +92,7 @@ def is_vehicle_available(vehicle_id, requested_start, requested_end):
         conn.close()
         return False
 
-    # 2. Check Reservation Overlaps
+    #Check Reservation Overlaps
     cur.execute("""
     SELECT start_datetime, end_datetime FROM Reservation
     WHERE vehicle_id=? AND status='active'
@@ -761,7 +746,7 @@ class RentalApp(ctk.CTk):
         except:
             messagebox.showerror("Invalid", "Reservation ID must be numeric.")
             return
-        # show damage total
+            
         conn = sqlite3.connect(DB_FILE)
         cur = conn.cursor()
         cur.execute("SELECT SUM(damage_cost) FROM DamageContract WHERE reservation_id=?", (rid,))
@@ -783,10 +768,7 @@ class RentalApp(ctk.CTk):
             self.damage_list_box.delete("1.0", "end")
             self.damage_list_box.insert("end", "No damage entries (reservation closed).")
             self.damage_list_box.configure(state="disabled")
-
-    # ===========================
-    # NEW MAINTENANCE TAB METHODS
-    # ===========================
+            
     def build_maintenance_tab(self):
         tab = self.tabview.tab("Maintenance")
         header = ctk.CTkLabel(tab, text="Vehicle Maintenance Check", font=ctk.CTkFont(size=18, weight="bold"))
@@ -873,8 +855,7 @@ class RentalApp(ctk.CTk):
             vid = int(val.split(" - ")[0])
         except:
             return
-
-        # Gather checks
+            
         checked_items = [item for item, var in self.check_vars.items() if var.get()]
         checklist_str = ", ".join(checked_items) if checked_items else "Routine Check"
 
@@ -937,7 +918,6 @@ class RentalApp(ctk.CTk):
         self.refresh_maintenance_list()
 
 def main():
-    fix_db()
     init_db()
     login = LoginWindow()
     login.mainloop()
