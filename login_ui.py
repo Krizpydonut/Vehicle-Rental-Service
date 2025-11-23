@@ -18,6 +18,9 @@ class LoginWindow(ctk.CTk):
         self.password_entry = ctk.CTkEntry(self, placeholder_text="Password", show="*")
         self.password_entry.pack(pady=10, padx=40, fill="x")
 
+        self.username_entry.bind('<Return>', lambda event: self.handle_login())
+        self.password_entry.bind('<Return>', lambda event: self.handle_login())
+        
         ctk.CTkButton(self, text="Login", command=self.handle_login).pack(pady=20)
 
         self.correct_username = "admin"
