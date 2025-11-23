@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import db 
 
 class BaseTab(ctk.CTkFrame):
-    """Base class for all tab frames to inherit common properties."""
     def __init__(self, master, app_controller, **kwargs):
         super().__init__(master, **kwargs)
         self.app_controller = app_controller 
