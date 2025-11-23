@@ -1,17 +1,15 @@
-import sqlite3
-from datetime import datetime, timedelta
 import customtkinter as ctk
 from tkinter import messagebox
 from tkcalendar import Calendar, DateEntry
-import db
+from datetime import datetime, timedelta
+import db 
 
 class RentalApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Vehicle Rental Service")
-        self.geometry("1050x850")
+        self.geometry("950x750")
 
-        #tabs
         self.tabview = ctk.CTkTabview(self, width=980, height=660)
         self.tabview.pack(padx=10, pady=10, fill="both", expand=True)
 
@@ -34,7 +32,6 @@ class RentalApp(ctk.CTk):
         self.refresh_calendar_marks()
         self.refresh_maintenance_list()
 
-    #Vehicles tab
     def build_vehicles_tab(self):
         tab = self.tabview.tab("Vehicles")
         header = ctk.CTkLabel(tab, text="Vehicles", font=ctk.CTkFont(size=18, weight="bold"))
@@ -78,7 +75,6 @@ class RentalApp(ctk.CTk):
             messagebox.showerror("Invalid", "Daily rate must be a number.")
             return
         
-        # Use db module
         ok, msg = db.add_vehicle(model, plate, vtype, rate)
 
         if msg == "success":
@@ -94,11 +90,8 @@ class RentalApp(ctk.CTk):
             messagebox.showerror("Error", "A vehicle with this plate already exists!")
             
     def refresh_vehicle_list(self):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT VehicleID, model, plate, vtype, daily_rate FROM Vehicle ORDER BY VehicleID")
-        rows = cur.fetchall()
-        conn.close()
+        rows = db.get_all_vehicles()
+        
         self.vehicles_box.configure(state="normal")
         self.vehicles_box.delete("1.0", "end")
         
@@ -110,89 +103,126 @@ class RentalApp(ctk.CTk):
             
         self.vehicles_box.configure(state="disabled")
         
-    #Rent tab
     def build_rent_tab(self):
         tab = self.tabview.tab("Rent Vehicle")
         header = ctk.CTkLabel(tab, text="Create a Reservation", font=ctk.CTkFont(size=18, weight="bold"))
-        header.pack(pady=(10,6))
+        header.pack(pady=(10,4))
     
         form = ctk.CTkFrame(tab)
-        form.pack(padx=15, pady=8, fill="both", expand=True)
+        form.pack(padx=5, pady=5, fill="x") 
 
-        left = ctk.CTkFrame(form)
-        left.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
-        left.grid_columnconfigure(0, weight=1)
+        form.grid_columnconfigure(0, weight=1)
+        form.grid_columnconfigure(1, weight=1)
+        form.grid_columnconfigure(2, weight=1)
+        
+        col0 = ctk.CTkFrame(form)
+        col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
+        col0.grid_columnconfigure(0, weight=0)
+        col0.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(left, text="Select Vehicle Type").pack(pady=(6,4))
+        row_index = 0
+        
+        ctk.CTkLabel(col0, text="Vehicle Type:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_type_var = ctk.StringVar()
-        self.vehicle_type_dropdown = ctk.CTkOptionMenu(left, values=[], variable=self.vehicle_type_var, command=self.update_model_dropdown)
-        self.vehicle_type_dropdown.pack(padx=6, pady=4, fill="x")
+        self.vehicle_type_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_type_var, command=self.update_model_dropdown)
+        self.vehicle_type_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
 
-        ctk.CTkLabel(left, text="Select Vehicle Model").pack(pady=(6,4))
+        ctk.CTkLabel(col0, text="Vehicle Model:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_model_var = ctk.StringVar()
-        self.vehicle_model_dropdown = ctk.CTkOptionMenu(left, values=[], variable=self.vehicle_model_var, command=self.update_vehicle_dropdown)
-        self.vehicle_model_dropdown.pack(padx=6, pady=4, fill="x")
+        self.vehicle_model_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_model_var, command=self.update_vehicle_dropdown)
+        self.vehicle_model_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
 
-        ctk.CTkLabel(left, text="Select Vehicle").pack(pady=(6,4))
+        ctk.CTkLabel(col0, text="Select Vehicle:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_id_var = ctk.StringVar()
-        self.vehicle_dropdown = ctk.CTkOptionMenu(left, values=[], variable=self.vehicle_id_var)
-        self.vehicle_dropdown.pack(padx=6, pady=4, fill="x")
+        self.vehicle_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_id_var)
+        self.vehicle_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
         
-        ctk.CTkLabel(left, text="Location (Where will the vehicle be used)").pack(pady=(6,2))
-        self.location_entry = ctk.CTkEntry(left, placeholder_text="Example: Manila, Cavite, etc.")
-        self.location_entry.pack(padx=6, pady=2, fill="x")
+        col1 = ctk.CTkFrame(form)
+        col1.grid(row=0, column=1, padx=3, pady=3, sticky="nsew") 
+        col1.grid_columnconfigure(0, weight=0)
+        col1.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(left, text="Pickup Date & Time").pack(pady=(6,2))
-        self.rent_pickup_date = DateEntry(left, date_pattern="yyyy-mm-dd")
-        self.rent_pickup_time = ctk.CTkEntry(left, placeholder_text="HH:MM (24h)")
-        self.rent_pickup_date.pack(padx=6, pady=2, fill="x")
-        self.rent_pickup_time.pack(padx=6, pady=2, fill="x")
+        row_index = 0
 
-        ctk.CTkLabel(left, text="Return Date & Time").pack(pady=(6,2))
-        self.rent_return_date = DateEntry(left, date_pattern="yyyy-mm-dd")
-        self.rent_return_time = ctk.CTkEntry(left, placeholder_text="HH:MM (24h)")
-        self.rent_return_date.pack(padx=6, pady=2, fill="x")
-        self.rent_return_time.pack(padx=6, pady=2, fill="x")
+        ctk.CTkLabel(col1, text="Location:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.location_entry = ctk.CTkEntry(col1, placeholder_text="Manila, Cavite, etc.")
+        self.location_entry.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col1, text="Pickup Date:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.rent_pickup_date = DateEntry(col1, date_pattern="yyyy-mm-dd")
+        self.rent_pickup_date.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col1, text="Pickup Time:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.rent_pickup_time = ctk.CTkEntry(col1, placeholder_text="HH:MM (24h)")
+        self.rent_pickup_time.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col1, text="Return Date:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.rent_return_date = DateEntry(col1, date_pattern="yyyy-mm-dd")
+        self.rent_return_date.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col1, text="Return Time:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.rent_return_time = ctk.CTkEntry(col1, placeholder_text="HH:MM (24h)")
+        self.rent_return_time.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
         
-        right = ctk.CTkFrame(form)
-        right.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
-        right.grid_columnconfigure(0, weight=1)
+        col2 = ctk.CTkFrame(form)
+        col2.grid(row=0, column=2, padx=3, pady=3, sticky="nsew") 
+        col2.grid_columnconfigure(0, weight=0)
+        col2.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(right, text="Customer Details").pack(pady=(6,4))
-        self.cust_name = ctk.CTkEntry(right, placeholder_text="Full name")
-        self.cust_phone = ctk.CTkEntry(right, placeholder_text="Phone number")
-        self.cust_email = ctk.CTkEntry(right, placeholder_text="Email")
-        self.cust_name.pack(padx=6, pady=4, fill="x")
-        self.cust_phone.pack(padx=6, pady=4, fill="x")
-        self.cust_email.pack(padx=6, pady=4, fill="x")
+        row_index = 0
+
+        ctk.CTkLabel(col2, text="Customer Name:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.cust_name = ctk.CTkEntry(col2, placeholder_text="Full name")
+        self.cust_name.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col2, text="Phone:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number")
+        self.cust_phone.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+
+        ctk.CTkLabel(col2, text="Email:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.cust_email = ctk.CTkEntry(col2, placeholder_text="Email")
+        self.cust_email.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
 
         self.driver_var = ctk.BooleanVar(value=False)
-        self.driver_checkbox = ctk.CTkCheckBox(right, text="Require Company Driver (adds extra 500/day)", variable=self.driver_var, command=self.toggle_driver_fields)
-        self.driver_checkbox.pack(pady=6)
-        self.driver_license_entry = ctk.CTkEntry(right, placeholder_text="Driver's License (if customer will drive)")
-        self.driver_license_entry.pack_forget()
+        self.driver_checkbox = ctk.CTkCheckBox(col2, text="Require Company Driver (adds extra 500/day)", variable=self.driver_var, command=self.toggle_driver_fields)
+        ctk.CTkLabel(col2, text="Driver:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.driver_checkbox.grid(row=row_index, column=1, pady=7, padx=5, sticky="w") 
+        row_index += 1
+        
+        self.driver_license_entry = ctk.CTkEntry(col2, placeholder_text="Driver's License (if customer will drive)")
+        self.driver_license_entry.grid_info_params = {'row': row_index, 'column': 0, 'columnspan': 2, 'padx': 5, 'pady': 7, 'sticky': "ew"}
+        
+        self.driver_license_entry.grid(**self.driver_license_entry.grid_info_params) 
+        
+        col2.grid_rowconfigure(row_index, weight=0) 
+        row_index += 1 
 
-        ctk.CTkButton(right, text="Check Availability & Reserve", command=self.handle_reserve).pack(pady=12)
-
+        ctk.CTkButton(col2, text="Check Availability & Reserve", command=self.handle_reserve).grid(row=row_index, column=0, columnspan=2, pady=(10, 5), padx=5, sticky="s")
+        col2.grid_rowconfigure(row_index, weight=1)
+        
         self.update_type_dropdown()
+        self.toggle_driver_fields()
 
-    def update_type_dropdown(self):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT vtype FROM Vehicle ORDER BY vtype")
-        types = [row[0] for row in cur.fetchall()]
-        conn.close()
+    def update_type_dropdown(self, *args):
+        types = db.get_vehicle_types()
         self.vehicle_type_dropdown.configure(values=types)
         if types:
             self.vehicle_type_var.set(types[0])
             self.update_model_dropdown(types[0])
 
     def update_model_dropdown(self, selected_type):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT model FROM Vehicle WHERE vtype=? ORDER BY model", (selected_type,))
-        models = [row[0] for row in cur.fetchall()]
-        conn.close()
+        models = db.get_models_by_type(selected_type)
         self.vehicle_model_dropdown.configure(values=models)
         if models:
             self.vehicle_model_var.set(models[0])
@@ -200,20 +230,21 @@ class RentalApp(ctk.CTk):
 
     def update_vehicle_dropdown(self, selected_model):
         selected_type = self.vehicle_type_var.get()
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT VehicleID, plate FROM Vehicle WHERE vtype=? AND model=? AND available=1 ORDER BY plate", (selected_type, selected_model))
-        vehicles = [f"{vid} - {plate}" for vid, plate in cur.fetchall()]
-        conn.close()
+        vehicles = db.get_available_vehicles_by_model(selected_type, selected_model)
         self.vehicle_dropdown.configure(values=vehicles)
         if vehicles:
             self.vehicle_id_var.set(vehicles[0])
             
     def toggle_driver_fields(self):
         if self.driver_var.get():
-            self.driver_license_entry.pack_forget()
+            self.driver_license_entry.grid_forget()
         else:
-            self.driver_license_entry.pack(padx=6, pady=4, fill="x")
+
+            params = self.driver_license_entry.grid_info_params
+            self.driver_license_entry.grid(row=params['row'], column=params['column'], 
+                                           columnspan=params['columnspan'], padx=params['padx'], 
+                                           pady=params['pady'], sticky=params['sticky'])
+
 
     def parse_datetime_inputs(self, date_widget, time_entry):
         date_str = date_widget.get_date().isoformat()
@@ -271,13 +302,11 @@ class RentalApp(ctk.CTk):
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
 
-        # Use db module
         if not db.is_vehicle_available(vehicle_id, start_dt.isoformat(), end_dt.isoformat()):
             messagebox.showinfo("Unavailable", "That vehicle is unavailable (Already booked or in Maintenance).")
             return
 
         try:
-            # Use db module
             res_id, total_cost = db.create_reservation(
                 vehicle_id, name, phone, email, driver_flag, driver_license,
                 start_dt.isoformat(), end_dt.isoformat(), location
@@ -291,8 +320,6 @@ class RentalApp(ctk.CTk):
         self.refresh_reservation_list()
         self.refresh_calendar_marks()
 
-
-    #Calendar tab 
     def build_calendar_tab(self):
         tab = self.tabview.tab("Calendar")
         header = ctk.CTkLabel(tab, text="Booking Calendar", font=ctk.CTkFont(size=18))
@@ -318,11 +345,9 @@ class RentalApp(ctk.CTk):
             self.calendar.calevent_remove('all')
         except:
             pass
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT start_datetime, end_datetime, ReservationID FROM Reservation WHERE status='active'")
-        rows = cur.fetchall()
-        conn.close()
+            
+        rows = db.get_active_reservations_dates()
+
         for s,e,rid in rows:
             sdt = datetime.fromisoformat(s)
             edt = datetime.fromisoformat(e)
@@ -335,21 +360,13 @@ class RentalApp(ctk.CTk):
                 day = day + timedelta(days=1)
 
     def show_bookings_for_date(self):
-        sel = self.calendar.get_date()  # yyyy-mm-dd
+        sel = self.calendar.get_date()
         dt_obj = datetime.fromisoformat(sel)
         start_day = datetime(dt_obj.year, dt_obj.month, dt_obj.day)
         end_day = start_day + timedelta(days=1)
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("""
-        SELECT r.ReservationID, v.plate, v.model, r.customer_name, r.start_datetime, r.end_datetime, r.location
-        FROM Reservation r JOIN Vehicle v ON r.vehicle_id = v.VehicleID
-        WHERE r.status='active' AND
-             NOT (r.end_datetime <= ? OR r.start_datetime >= ?)
-        ORDER BY r.start_datetime
-        """, (start_day.isoformat(), end_day.isoformat()))
-        rows = cur.fetchall()
-        conn.close()
+        
+        rows = db.get_bookings_for_date(start_day.isoformat(), end_day.isoformat())
+
         self.bookings_text.configure(state="normal")
         self.bookings_text.delete("1.0", "end")
         if not rows:
@@ -359,7 +376,6 @@ class RentalApp(ctk.CTk):
                 self.bookings_text.insert("end", f"#{rid} Plate: {plate} Model: {model}\n  Customer: {name}\n  From {s} to {e}\n  Location: {location}\n\n")
         self.bookings_text.configure(state="disabled")
 
-    #Reservations tab
     def build_reservations_tab(self):
         tab = self.tabview.tab("Active Reservations")
         header = ctk.CTkLabel(tab, text="Reservations", font=ctk.CTkFont(size=18))
@@ -374,7 +390,6 @@ class RentalApp(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Mark Returned (select ID below then use Return tab)", command=self.refresh_reservation_list).pack(side="left", padx=6)
 
     def refresh_reservation_list(self):
-        # Use db module
         rows = db.list_active_reservations()
         self.reservations_box.configure(state="normal")
         self.reservations_box.delete("1.0", "end")
@@ -384,7 +399,6 @@ class RentalApp(ctk.CTk):
             self.reservations_box.insert("end", f"{rid:<6} {plate:<10} {model:<18} {cname:<20} {s:<19} {e:<19} {status:<8}\n")
         self.reservations_box.configure(state="disabled")
 
-    #Return / Damage tab
     def build_return_tab(self):
         tab = self.tabview.tab("Return / Damage")
         header = ctk.CTkLabel(tab, text="Process Return & Damage Contract", font=ctk.CTkFont(size=18))
@@ -402,7 +416,6 @@ class RentalApp(ctk.CTk):
         self.return_info = ctk.CTkTextbox(frame, height=140)
         self.return_info.pack(fill="x", pady=6)
 
-        #Damage form
         dmg_frame = ctk.CTkFrame(frame)
         dmg_frame.pack(fill="x", pady=6)
         ctk.CTkLabel(dmg_frame, text="Condition of the vehicle (will be charged to customer)").grid(row=0, column=0, columnspan=2, pady=(4,6))
@@ -435,15 +448,9 @@ class RentalApp(ctk.CTk):
         except:
             messagebox.showerror("Invalid", "Reservation ID must be numeric.")
             return
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("""
-        SELECT r.ReservationID, v.plate, v.model, r.customer_name, r.start_datetime, r.end_datetime, r.driver_flag, r.driver_license, r.total_cost
-        FROM Reservation r JOIN Vehicle v ON r.vehicle_id = v.VehicleID
-        WHERE r.ReservationID=?
-        """, (rid,))
-        row = cur.fetchone()
-        conn.close()
+            
+        row = db.get_reservation_details(rid)
+
         if not row:
             messagebox.showerror("Not found", "Reservation not found.")
             return
@@ -456,11 +463,8 @@ class RentalApp(ctk.CTk):
         self.refresh_damage_list(rid)
 
     def refresh_damage_list(self, reservation_id):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT condition, damage_cost, notes, created_at FROM DamageContract WHERE reservation_id=?", (reservation_id,))
-        rows = cur.fetchall()
-        conn.close()
+        rows = db.get_damage_contracts(reservation_id)
+        
         self.damage_list_box.configure(state="normal")
         self.damage_list_box.delete("1.0", "end")
         if not rows:
@@ -495,7 +499,6 @@ class RentalApp(ctk.CTk):
             messagebox.showerror("Invalid", "Cost must be numeric.")
             return
         
-        # Use db module
         db.add_damage(rid, condition, cost, notes)
         messagebox.showinfo("Added", "Damage entry added.")
         self.condition.delete(0, "end")
@@ -513,17 +516,16 @@ class RentalApp(ctk.CTk):
         except:
             messagebox.showerror("Invalid", "Reservation ID must be numeric.")
             return
-        # show damage total
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT SUM(damage_cost) FROM DamageContract WHERE reservation_id=?", (rid,))
-        dmg_total = cur.fetchone()[0] or 0.0
-        cur.execute("SELECT total_cost FROM Reservation WHERE ReservationID=?", (rid,))
-        base = cur.fetchone()[0] or 0.0
+            
+        try:
+            base, dmg_total, _ = db.get_final_costs(rid)
+        except ValueError:
+            messagebox.showerror("Error", "Reservation not found or invalid.")
+            return
+
         final = base + dmg_total
-        conn.close()
+        
         if messagebox.askyesno("Finalize Return", f"Base total: {base:.2f}\nDamage total: {dmg_total:.2f}\nFinal amount due from customer: {final:.2f}\n\nMark reservation as returned?"):
-            # Use db module
             db.finalize_reservation(rid)
             messagebox.showinfo("Returned", "Reservation marked returned.")
             self.refresh_reservation_list()
@@ -537,19 +539,14 @@ class RentalApp(ctk.CTk):
             self.damage_list_box.insert("end", "No damage entries (reservation closed).")
             self.damage_list_box.configure(state="disabled")
 
-    # ===========================
-    # MAINTENANCE TAB METHODS
-    # ===========================
     def build_maintenance_tab(self):
         tab = self.tabview.tab("Maintenance")
         header = ctk.CTkLabel(tab, text="Vehicle Maintenance Check", font=ctk.CTkFont(size=18, weight="bold"))
         header.pack(pady=(10, 6))
 
-        # Container
         container = ctk.CTkFrame(tab)
         container.pack(padx=10, pady=10, fill="both", expand=True)
 
-        # Left side: Form to add maintenance
         left = ctk.CTkFrame(container)
         left.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         container.grid_columnconfigure(0, weight=1)
@@ -558,14 +555,12 @@ class RentalApp(ctk.CTk):
 
         ctk.CTkLabel(left, text="Start Maintenance", font=ctk.CTkFont(weight="bold")).pack(pady=10)
 
-        # Vehicle Selection
         ctk.CTkLabel(left, text="Select Vehicle:").pack(anchor="w", padx=10)
         self.maint_vehicle_var = ctk.StringVar()
         self.maint_vehicle_dropdown = ctk.CTkOptionMenu(left, variable=self.maint_vehicle_var, values=[])
         self.maint_vehicle_dropdown.pack(fill="x", padx=10, pady=(0, 10))
         self.update_maint_vehicle_dropdown()
 
-        # Checklist
         ctk.CTkLabel(left, text="Checklist (Check items to service):").pack(anchor="w", padx=10)
         self.check_vars = {}
         check_items = ["Oil Change", "Fuel System", "Tires", "Brakes", "Battery", "Lights", "Fluids"]
@@ -575,21 +570,17 @@ class RentalApp(ctk.CTk):
             chk.pack(anchor="w", padx=20, pady=2)
             self.check_vars[item] = var
 
-        # Cost
         ctk.CTkLabel(left, text="Estimated Cost:").pack(anchor="w", padx=10, pady=(10,0))
         self.maint_cost_entry = ctk.CTkEntry(left, placeholder_text="0.00")
         self.maint_cost_entry.pack(fill="x", padx=10, pady=5)
 
-        # Notes
         ctk.CTkLabel(left, text="Notes / Details:").pack(anchor="w", padx=10)
         self.maint_notes_entry = ctk.CTkTextbox(left, height=60)
         self.maint_notes_entry.pack(fill="x", padx=10, pady=5)
 
-        # Button
         ctk.CTkButton(left, text="Send to Maintenance\n(Makes Vehicle Unavailable)", command=self.handle_start_maintenance).pack(pady=20, padx=10, fill="x")
 
 
-        # Right side: Active Maintenance List
         right = ctk.CTkFrame(container)
         right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         
@@ -598,7 +589,6 @@ class RentalApp(ctk.CTk):
         self.maint_list_box = ctk.CTkTextbox(right, font=("Courier New", 12))
         self.maint_list_box.pack(fill="both", expand=True, padx=10, pady=5)
         
-        # Controls for finishing maintenance
         ctrl = ctk.CTkFrame(right)
         ctrl.pack(fill="x", padx=10, pady=10)
         ctk.CTkLabel(ctrl, text="Maintenance ID to Finish:").pack(side="left", padx=5)
@@ -608,11 +598,7 @@ class RentalApp(ctk.CTk):
         ctk.CTkButton(ctrl, text="Refresh List", command=self.refresh_maintenance_list).pack(side="right", padx=5)
 
     def update_maint_vehicle_dropdown(self):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("SELECT VehicleID, plate, model FROM Vehicle ORDER BY plate")
-        vehs = [f"{vid} - {plate} ({model})" for vid, plate, model in cur.fetchall()]
-        conn.close()
+        vehs = db.get_all_vehicle_list()
         self.maint_vehicle_dropdown.configure(values=vehs)
         if vehs:
             self.maint_vehicle_var.set(vehs[0])
@@ -627,7 +613,6 @@ class RentalApp(ctk.CTk):
         except:
             return
 
-        # Gather checks
         checked_items = [item for item, var in self.check_vars.items() if var.get()]
         checklist_str = ", ".join(checked_items) if checked_items else "Routine Check"
 
@@ -640,12 +625,10 @@ class RentalApp(ctk.CTk):
 
         notes = self.maint_notes_entry.get("1.0", "end").strip()
 
-        # Use db module
         success, msg = db.start_maintenance(vid, checklist_str, cost, notes)
         if success:
             messagebox.showinfo("Started", "Vehicle sent to maintenance. It is now unavailable for rent.")
             self.refresh_maintenance_list()
-            # Clear form
             self.maint_cost_entry.delete(0, "end")
             self.maint_notes_entry.delete("1.0", "end")
             for var in self.check_vars.values(): var.set(False)
@@ -653,15 +636,7 @@ class RentalApp(ctk.CTk):
             messagebox.showerror("Error", msg)
 
     def refresh_maintenance_list(self):
-        conn = sqlite3.connect(db.DB_FILE)
-        cur = conn.cursor()
-        cur.execute("""
-        SELECT m.MaintenanceID, v.plate, m.checklist, m.cost, m.start_date, m.notes 
-        FROM Maintenance m JOIN Vehicle v ON m.vehicle_id = v.VehicleID
-        WHERE m.status='active'
-        """)
-        rows = cur.fetchall()
-        conn.close()
+        rows = db.get_active_maintenance()
         
         self.maint_list_box.configure(state="normal")
         self.maint_list_box.delete("1.0", "end")
@@ -685,7 +660,6 @@ class RentalApp(ctk.CTk):
             messagebox.showerror("Invalid", "ID must be a number.")
             return
         
-        # Use db module
         db.finish_maintenance(mid)
         messagebox.showinfo("Success", "Maintenance finished. Vehicle is available for rent.")
         self.finish_maint_id.delete(0, "end")
