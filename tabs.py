@@ -102,6 +102,12 @@ class RentTab(BaseTab):
         self.build_ui()
         self.update_type_dropdown()
 
+    def validate_number(self, P):
+        """Callback to validate if input P is a number or empty string."""
+        if P == "": 
+            return True
+        return P.isdigit()
+
     def build_ui(self):
         tab = self
         header = ctk.CTkLabel(tab, text="Create a Reservation", font=ctk.CTkFont(size=18, weight="bold"))
@@ -113,6 +119,9 @@ class RentTab(BaseTab):
         form.grid_columnconfigure(0, weight=1)
         form.grid_columnconfigure(1, weight=1)
         form.grid_columnconfigure(2, weight=1)
+        
+        # --- Register Validation Command ---
+        vcmd = (self.register(self.validate_number), '%P')
         
         col0 = ctk.CTkFrame(form)
         col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
@@ -184,7 +193,8 @@ class RentTab(BaseTab):
         row_index += 1
 
         ctk.CTkLabel(col2, text="Phone:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
-        self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number")
+        # --- APPLIED VALIDATION HERE ---
+        self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number", validate="key", validatecommand=vcmd)
         self.cust_phone.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
 
