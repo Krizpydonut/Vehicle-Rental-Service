@@ -413,8 +413,7 @@ class ReservationsTab(BaseTab):
         btn_frame = ctk.CTkFrame(tab)
         btn_frame.pack(pady=6)
         ctk.CTkButton(btn_frame, text="Refresh", command=self.refresh_list).pack(side="left", padx=6)
-        ctk.CTkButton(btn_frame, text="Mark Returned (select ID below then use Return tab)").pack(side="left", padx=6)
-
+        
     def refresh_list(self):
         rows = self.system.get_active_reservations()
         self.reservations_box.configure(state="normal")
