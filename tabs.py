@@ -2,7 +2,6 @@ import customtkinter as ctk
 from tkinter import messagebox
 from tkcalendar import Calendar, DateEntry
 from datetime import datetime, timedelta
-
 from rental_system import VehicleRentalService, Vehicle, Customer, Documentation, MaintenanceRecord
 
 class BaseTab(ctk.CTkFrame):
