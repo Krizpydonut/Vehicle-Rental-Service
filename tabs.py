@@ -2,12 +2,15 @@ import customtkinter as ctk
 from tkinter import messagebox
 from tkcalendar import Calendar, DateEntry
 from datetime import datetime, timedelta
-import db 
+from rental_system import VehicleRentalService, Vehicle, Customer, Documentation, MaintenanceRecord
 
 class BaseTab(ctk.CTkFrame):
+    """Base class for all tab frames to inherit common properties."""
     def __init__(self, master, app_controller, **kwargs):
         super().__init__(master, **kwargs)
         self.app_controller = app_controller 
+        # Shortcut to access the system logic
+        self.system = app_controller.system
         self.grid_columnconfigure(0, weight=1)
 
 class VehiclesTab(BaseTab):
@@ -58,16 +61,19 @@ class VehiclesTab(BaseTab):
             messagebox.showerror("Invalid", "Daily rate must be a number.")
             return
         
-        ok, msg = db.add_vehicle(model, plate, vtype, rate)
+        # OOD: Create Vehicle Object
+        new_vehicle = Vehicle(model, plate, vtype, rate)
 
-        if msg == "success":
+        # OOD: Pass object to System
+        ok, msg = self.system.add_new_vehicle(new_vehicle)
+
+        if ok:
             messagebox.showinfo("Added", f"Vehicle {plate} added.")
             self.entry_model.delete(0, "end")
             self.entry_plate.delete(0, "end")
             self.entry_type.delete(0, "end")
             self.entry_rate.delete(0, "end")
             self.refresh_vehicle_list()
-            # Inform the controller to refresh other tabs
             self.app_controller.refresh_calendar_marks()
             self.app_controller.refresh_rent_dropdowns()
             self.app_controller.update_maint_vehicle_dropdown()
@@ -75,7 +81,7 @@ class VehiclesTab(BaseTab):
             messagebox.showerror("Error", "A vehicle with this plate already exists!")
             
     def refresh_vehicle_list(self):
-        rows = db.get_all_vehicles()
+        rows = self.system.get_all_vehicles()
         
         self.vehicles_box.configure(state="normal")
         self.vehicles_box.delete("1.0", "end")
@@ -83,8 +89,9 @@ class VehiclesTab(BaseTab):
         self.vehicles_box.insert("end", f"{'ID':<4} {'PLATE':<14} {'MODEL':<30} {'TYPE':<10} {'RATE/day':>8}\n")
         self.vehicles_box.insert("end", "-"*80 + "\n")
         
-        for vid, model, plate, vtype, rate in rows:
-            self.vehicles_box.insert("end", f"{vid:<4} {plate:<14} {model:<30} {vtype:<10} {rate:>8.2f}\n")
+        for row in rows:
+            # Using dictionary access for sqlite3.Row
+            self.vehicles_box.insert("end", f"{row['VehicleID']:<4} {row['plate']:<14} {row['model']:<30} {row['vtype']:<10} {row['daily_rate']:>8.2f}\n")
             
         self.vehicles_box.configure(state="disabled")
 
@@ -93,6 +100,12 @@ class RentTab(BaseTab):
         super().__init__(master, app_controller)
         self.build_ui()
         self.update_type_dropdown()
+
+    def validate_number(self, P):
+        """Callback to validate if input P is a number or empty string."""
+        if P == "": 
+            return True
+        return P.isdigit()
 
     def build_ui(self):
         tab = self
@@ -105,6 +118,9 @@ class RentTab(BaseTab):
         form.grid_columnconfigure(0, weight=1)
         form.grid_columnconfigure(1, weight=1)
         form.grid_columnconfigure(2, weight=1)
+        
+        # --- Register Validation Command ---
+        vcmd = (self.register(self.validate_number), '%P')
         
         col0 = ctk.CTkFrame(form)
         col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
@@ -176,7 +192,8 @@ class RentTab(BaseTab):
         row_index += 1
 
         ctk.CTkLabel(col2, text="Phone:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
-        self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number")
+        # --- APPLIED VALIDATION HERE ---
+        self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number", validate="key", validatecommand=vcmd)
         self.cust_phone.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
 
@@ -217,7 +234,7 @@ class RentTab(BaseTab):
             raise ValueError("Invalid time format. Use HH:MM (24h).")
 
     def update_type_dropdown(self, *args):
-        types = db.get_vehicle_types()
+        types = self.system.get_vehicle_types()
         self.vehicle_type_dropdown.configure(values=types)
         if types:
             self.vehicle_type_var.set(types[0])
@@ -227,7 +244,7 @@ class RentTab(BaseTab):
             self.update_model_dropdown("")
 
     def update_model_dropdown(self, selected_type):
-        models = db.get_models_by_type(selected_type)
+        models = self.system.get_models_by_type(selected_type)
         self.vehicle_model_dropdown.configure(values=models)
         if models:
             self.vehicle_model_var.set(models[0])
@@ -238,7 +255,7 @@ class RentTab(BaseTab):
 
     def update_vehicle_dropdown(self, selected_model):
         selected_type = self.vehicle_type_var.get()
-        vehicles = db.get_available_vehicles_by_model(selected_type, selected_model)
+        vehicles = self.system.get_available_vehicles_list(selected_type, selected_model)
         self.vehicle_dropdown.configure(values=vehicles)
         if vehicles:
             self.vehicle_id_var.set(vehicles[0])
@@ -298,15 +315,14 @@ class RentTab(BaseTab):
             if not driver_license:
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
-
-        if not db.is_vehicle_available(vehicle_id, start_dt.isoformat(), end_dt.isoformat()):
-            messagebox.showinfo("Unavailable", "That vehicle is unavailable (Already booked or in Maintenance).")
-            return
+        
+        # OOD: Create Customer Object
+        customer = Customer(name, phone, email, driver_license)
 
         try:
-            res_id, total_cost = db.create_reservation(
-                vehicle_id, name, phone, email, driver_flag, driver_license,
-                start_dt.isoformat(), end_dt.isoformat(), location
+            # OOD: Pass to system controller
+            res_id, total_cost = self.system.make_reservation(
+                vehicle_id, customer, start_dt.isoformat(), end_dt.isoformat(), driver_flag, location
             )
         except ValueError as ve:
             messagebox.showerror("Error", str(ve))
@@ -314,7 +330,6 @@ class RentTab(BaseTab):
 
         messagebox.showinfo("Reserved", f"Reservation created (ID {res_id}). Total estimated cost: {total_cost:.2f}")
 
-        # Inform the controller to refresh other tabs
         self.app_controller.refresh_reservation_list()
         self.app_controller.refresh_calendar_marks()
 
@@ -350,7 +365,7 @@ class CalendarTab(BaseTab):
         except:
             pass
             
-        rows = db.get_active_reservations_dates()
+        rows = self.system.get_active_reservations_dates()
 
         for s,e,rid in rows:
             sdt = datetime.fromisoformat(s)
@@ -358,7 +373,6 @@ class CalendarTab(BaseTab):
             day = sdt.date()
             while day <= edt.date():
                 try:
-                    # 'reserved' is a tag for styling in tkcalendar, though customtkinter doesn't support the styling features
                     self.calendar.calevent_create(day, f"Booked #{rid}", 'reserved') 
                 except Exception:
                     pass
@@ -370,15 +384,15 @@ class CalendarTab(BaseTab):
         start_day = datetime(dt_obj.year, dt_obj.month, dt_obj.day)
         end_day = start_day + timedelta(days=1)
         
-        rows = db.get_bookings_for_date(start_day.isoformat(), end_day.isoformat())
+        rows = self.system.get_bookings_for_date(start_day.isoformat(), end_day.isoformat())
 
         self.bookings_text.configure(state="normal")
         self.bookings_text.delete("1.0", "end")
         if not rows:
             self.bookings_text.insert("end", "No bookings on this date.\n")
         else:
-            for rid, plate, model, name, s,e ,location in rows:
-                self.bookings_text.insert("end", f"#{rid} Plate: {plate} Model: {model}\n  Customer: {name}\n  From {s} to {e}\n  Location: {location}\n\n")
+            for row in rows:
+                self.bookings_text.insert("end", f"#{row['ReservationID']} Plate: {row['plate']} Model: {row['model']}\n  Customer: {row['customer_name']}\n  From {row['start_datetime']} to {row['end_datetime']}\n  Location: {row['location']}\n\n")
         self.bookings_text.configure(state="disabled")
 
 class ReservationsTab(BaseTab):
@@ -398,23 +412,21 @@ class ReservationsTab(BaseTab):
         btn_frame = ctk.CTkFrame(tab)
         btn_frame.pack(pady=6)
         ctk.CTkButton(btn_frame, text="Refresh", command=self.refresh_list).pack(side="left", padx=6)
-        ctk.CTkButton(btn_frame, text="Mark Returned (select ID below then use Return tab)").pack(side="left", padx=6)
-
+        
     def refresh_list(self):
-        rows = db.list_active_reservations()
+        rows = self.system.get_active_reservations()
         self.reservations_box.configure(state="normal")
         self.reservations_box.delete("1.0", "end")
         self.reservations_box.insert("end", f"{'ResID':<6} {'PLATE':<10} {'MODEL':<18} {'CUSTOMER':<20} {'FROM':<19} {'TO':<19} {'STATUS':<8}\n")
         self.reservations_box.insert("end", "-"*110 + "\n")
-        for rid, plate, model, cname, s,e,status in rows:
-            self.reservations_box.insert("end", f"{rid:<6} {plate:<10} {model:<18} {cname:<20} {s:<19} {e:<19} {status:<8}\n")
+        for row in rows:
+            self.reservations_box.insert("end", f"{row['ReservationID']:<6} {row['plate']:<10} {row['model']:<18} {row['customer_name']:<20} {row['start_datetime']:<19} {row['end_datetime']:<19} {row['status']:<8}\n")
         self.reservations_box.configure(state="disabled")
 
 class ReturnTab(BaseTab):
     def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
         self.build_ui()
-        # Initialize with placeholder text
         self.return_info.configure(state="normal")
         self.return_info.insert("end", "Enter Reservation ID and click 'Load' to begin processing return.")
         self.return_info.configure(state="disabled")
@@ -469,13 +481,13 @@ class ReturnTab(BaseTab):
             messagebox.showerror("Invalid", "Reservation ID must be numeric.")
             return
             
-        row = db.get_reservation_details(rid)
+        row = self.system.get_reservation_details(rid)
 
         if not row:
             messagebox.showerror("Not found", "Reservation not found.")
             return
-        rid, plate, model, name, s,e, driver_flag, driver_license, total_cost = row
-        info = f"ResID: {rid}\nPlate: {plate}\nModel: {model}\nCustomer: {name}\nFrom: {s}\nTo: {e}\nDriver provided: {'Yes' if driver_flag else 'No'}\nDriver license on file: {driver_license}\nEstimated Total (before damages): {total_cost:.2f}\n"
+        
+        info = f"ResID: {row['ReservationID']}\nPlate: {row['plate']}\nModel: {row['model']}\nCustomer: {row['customer_name']}\nFrom: {row['start_datetime']}\nTo: {row['end_datetime']}\nDriver provided: {'Yes' if row['driver_flag'] else 'No'}\nDriver license on file: {row['driver_license']}\nEstimated Total (before damages): {row['total_cost']:.2f}\n"
         self.return_info.configure(state="normal")
         self.return_info.delete("1.0", "end")
         self.return_info.insert("end", info)
@@ -483,7 +495,7 @@ class ReturnTab(BaseTab):
         self.refresh_damage_list(rid)
 
     def refresh_damage_list(self, reservation_id):
-        rows = db.get_damage_contracts(reservation_id)
+        rows = self.system.get_damage_contracts(reservation_id)
         
         self.damage_list_box.configure(state="normal")
         self.damage_list_box.delete("1.0", "end")
@@ -491,9 +503,9 @@ class ReturnTab(BaseTab):
             self.damage_list_box.insert("end", "No damage entries yet for this reservation.\n")
         else:
             total = 0.0
-            for condition, cost, notes, created_at in rows:
-                self.damage_list_box.insert("end", f"{created_at} | Condition: {condition} | Cost: {cost:.2f}\n  Notes: {notes}\n\n")
-                total += float(cost)
+            for row in rows:
+                self.damage_list_box.insert("end", f"{row['created_at']} | Condition: {row['condition']} | Cost: {row['damage_cost']:.2f}\n  Notes: {row['notes']}\n\n")
+                total += float(row['damage_cost'])
             self.damage_list_box.insert("end", f"\nTotal damage charges: {total:.2f}\n")
         self.damage_list_box.configure(state="disabled")
 
@@ -519,7 +531,10 @@ class ReturnTab(BaseTab):
             messagebox.showerror("Invalid", "Cost must be numeric.")
             return
         
-        db.add_damage(rid, condition, cost, notes)
+        # OOD: Create Documentation Object
+        doc = Documentation(rid)
+        doc.generateDocument(condition, cost, notes)
+        
         messagebox.showinfo("Added", "Damage entry added.")
         self.condition.delete(0, "end")
         self.dmg_cost.delete(0, "end")
@@ -538,20 +553,17 @@ class ReturnTab(BaseTab):
             return
             
         try:
-            base, dmg_total, _ = db.get_final_costs(rid)
-        except ValueError:
+            # OOD: Delegate finalized logic to system
+            base, dmg_total, final = self.system.finalize_return(rid)
+        except Exception:
             messagebox.showerror("Error", "Reservation not found or invalid.")
             return
-
-        final = base + dmg_total
         
         if messagebox.askyesno("Finalize Return", f"Base total: {base:.2f}\nDamage total: {dmg_total:.2f}\nFinal amount due from customer: {final:.2f}\n\nMark reservation as returned?"):
-            db.finalize_reservation(rid)
             messagebox.showinfo("Returned", "Reservation marked returned.")
-            # Inform the controller to refresh other tabs
             self.app_controller.refresh_reservation_list()
             self.app_controller.refresh_calendar_marks()
-            self.app_controller.refresh_rent_dropdowns() # Available vehicle list may change
+            self.app_controller.refresh_rent_dropdowns()
             
             self.return_info.configure(state="normal")
             self.return_info.delete("1.0", "end")
@@ -627,7 +639,7 @@ class MaintenanceTab(BaseTab):
         ctk.CTkButton(ctrl, text="Refresh List", command=self.refresh_maintenance_list).pack(side="right", padx=5)
 
     def update_vehicle_dropdown(self):
-        vehs = db.get_all_vehicle_list()
+        vehs = self.system.get_all_vehicle_list_fmt()
         self.maint_vehicle_dropdown.configure(values=vehs)
         if vehs:
             self.maint_vehicle_var.set(vehs[0])
@@ -656,10 +668,14 @@ class MaintenanceTab(BaseTab):
             return
 
         notes = self.maint_notes_entry.get("1.0", "end").strip()
+        
+        # OOD: Create Record Object
+        record = MaintenanceRecord(vid, checklist_str, cost, notes)
 
-        success, msg = db.start_maintenance(vid, checklist_str, cost, notes)
+        # OOD: Pass to System
+        success, msg = self.system.start_maintenance(record)
         if success:
-            messagebox.showinfo("Started", "Vehicle sent to maintenance. It is now unavailable for rent.")
+            messagebox.showinfo("Started", "Vehicle sent to maintenance.")
             self.refresh_maintenance_list()
             self.app_controller.refresh_rent_dropdowns() 
             self.maint_cost_entry.delete(0, "end")
@@ -669,16 +685,16 @@ class MaintenanceTab(BaseTab):
             messagebox.showerror("Error", msg)
 
     def refresh_maintenance_list(self):
-        rows = db.get_active_maintenance()
+        rows = self.system.get_active_maintenance()
         
         self.maint_list_box.configure(state="normal")
         self.maint_list_box.delete("1.0", "end")
         self.maint_list_box.insert("end", f"{'ID':<4} {'PLATE':<12} {'COST':<10} {'STARTED':<20} {'CHECKS'}\n")
         self.maint_list_box.insert("end", "-"*90+"\n")
-        for mid, plate, check, cost, start, notes in rows:
-            self.maint_list_box.insert("end", f"{mid:<4} {plate:<12} {cost:<10.2f} {start[:16]:<20} {check}\n")
-            if notes:
-                self.maint_list_box.insert("end", f"    Notes: {notes}\n")
+        for row in rows:
+            self.maint_list_box.insert("end", f"{row['MaintenanceID']:<4} {row['plate']:<12} {row['cost']:<10.2f} {row['start_date'][:16]:<20} {row['checklist']}\n")
+            if row['notes']:
+                self.maint_list_box.insert("end", f"    Notes: {row['notes']}\n")
             self.maint_list_box.insert("end", "\n")
         self.maint_list_box.configure(state="disabled")
 
@@ -693,7 +709,7 @@ class MaintenanceTab(BaseTab):
             messagebox.showerror("Invalid", "ID must be a number.")
             return
         
-        db.finish_maintenance(mid)
+        self.system.finish_maintenance(mid)
         messagebox.showinfo("Success", "Maintenance finished. Vehicle is available for rent.")
         self.finish_maint_id.delete(0, "end")
         self.refresh_maintenance_list()

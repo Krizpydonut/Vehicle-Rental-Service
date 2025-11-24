@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from rental_system import VehicleRentalService
 from tabs import VehiclesTab, RentTab, CalendarTab, ReservationsTab, ReturnTab, MaintenanceTab 
 
 class RentalApp(ctk.CTk):
@@ -6,12 +7,10 @@ class RentalApp(ctk.CTk):
         super().__init__()
         self.title("Vehicle Rental Service")
         self.geometry("950x750")
-
+        self.system = VehicleRentalService()
         self.tabview = ctk.CTkTabview(self, width=980, height=660)
         self.tabview.pack(padx=10, pady=10, fill="both", expand=True)
-
         self.tab_instances = {}
-
         self.build_tabs()
         
     def build_tabs(self):
