@@ -1,5 +1,3 @@
-# vehiclerentalservice/db.py
-
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -96,31 +94,49 @@ def init_db():
 
 # --- NEW FUNCTION: find_or_create_customer ---
 def find_or_create_customer(name, phone, email, license, government_id="N/A"):
-    """Creates a new customer or finds existing one by license/email. Returns CustomerID."""
+    """
+    Creates a new customer or finds existing one by license/email and REUSES the ID. 
+    Returns CustomerID.
+    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # Try finding an existing customer by license or email
-    cur.execute("SELECT CustomerID FROM Customer WHERE drivers_license=? OR email=?", (license, email))
-    row = cur.fetchone()
+    # Normalize empty license/email to None for proper SQL NULL handling
+    license_to_check = license.strip() if license else None
+    email_to_check = email.strip() if email else None
     
-    if row:
-        conn.close()
-        return row[0]
+    # 1. Check for existing customer by drivers_license (If a license was provided)
+    if license_to_check:
+        cur.execute("SELECT CustomerID FROM Customer WHERE drivers_license=?", (license_to_check,))
+        row = cur.fetchone()
+        if row:
+            conn.close()
+            # ACTION: Reuse existing ID for returning customer
+            return row[0]
     
-    # If not found, create a new customer
+    # 2. Check for existing customer by email (If an email was provided)
+    if email_to_check:
+        cur.execute("SELECT CustomerID FROM Customer WHERE email=?", (email_to_check,))
+        row = cur.fetchone()
+        if row:
+            conn.close()
+            # ACTION: Reuse existing ID for returning customer
+            return row[0]
+    
+    # 3. If not found by unique keys, create a new customer
     try:
         cur.execute("""
         INSERT INTO Customer (name, phone, email, drivers_license, government_id)
         VALUES (?, ?, ?, ?, ?)
-        """, (name, phone, email, license, government_id))
+        """, (name, phone, email_to_check, license_to_check, government_id))
         conn.commit()
         customer_id = cur.lastrowid
         conn.close()
         return customer_id
     except sqlite3.IntegrityError:
         conn.close()
-        raise ValueError("A customer with this email or driver's license already exists.")
+        # Fallback for unexpected integrity error (e.g., if a new unique constraint was added)
+        raise ValueError("A severe database integrity error occurred during customer creation. Check unique fields.")
 
 # --- VEHICLE FUNCTIONS (NO CHANGE) ---
 def add_vehicle(model, plate, vtype, rate):
