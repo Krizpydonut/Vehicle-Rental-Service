@@ -50,3 +50,6 @@ class RentalApp(ctk.CTk):
         
     def refresh_rent_dropdowns(self):
         self.tab_instances["Rent Vehicle"].update_type_dropdown()
+        
+    def refresh_return_dropdown(self):
+        self.tab_instances["Return / Damage"].update_reservation_dropdown()
