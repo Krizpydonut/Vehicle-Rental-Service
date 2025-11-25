@@ -209,9 +209,7 @@ class RentTab(BaseTab):
         row_index += 1
         
         self.driver_license_entry = ctk.CTkEntry(col2, placeholder_text="Driver's License (if customer will drive)")
-        self.driver_license_entry.grid_info_params = {'row': row_index, 'column': 0, 'columnspan': 2, 'padx': 5, 'pady': 7, 'sticky': "ew"}
-        
-        self.driver_license_entry.grid(**self.driver_license_entry.grid_info_params) 
+        self.driver_license_entry.grid(row=row_index, column=0, columnspan=2, padx=5, pady=7, sticky="ew")
         
         col2.grid_rowconfigure(row_index, weight=0) 
         row_index += 1 
@@ -266,12 +264,8 @@ class RentTab(BaseTab):
         if self.driver_var.get():
             self.driver_license_entry.grid_forget()
         else:
-            params = self.driver_license_entry.grid_info_params
-            self.driver_license_entry.grid(row=params['row'], column=params['column'], 
-                                           columnspan=params['columnspan'], padx=params['padx'], 
-                                           pady=params['pady'], sticky=params['sticky'])
-
-
+            self.driver_license_entry.grid(row=6, column=0, columnspan=2, padx=5, pady=7, sticky="ew")
+            
     def handle_reserve(self):
         vehicle_text = self.vehicle_id_var.get().strip()
         if not vehicle_text:
@@ -332,6 +326,7 @@ class RentTab(BaseTab):
 
         self.app_controller.refresh_reservation_list()
         self.app_controller.refresh_calendar_marks()
+        self.app_controller.refresh_return_dropdown()
 
 class CalendarTab(BaseTab):
     def __init__(self, master, app_controller):
@@ -367,13 +362,37 @@ class CalendarTab(BaseTab):
             
         rows = self.system.get_active_reservations_dates()
 
-        for s,e,rid in rows:
-            sdt = datetime.fromisoformat(s)
-            edt = datetime.fromisoformat(e)
+        for row in rows:
+            # Try to extract start, end, reservation id from various possible row shapes
+            try:
+                # Common case: simple tuple/list like (start, end, rid, ...)
+                s, e, rid = row
+            except Exception:
+                try:
+                    # sqlite3.Row or dict-like access
+                    s = row['start_datetime']
+                    e = row['end_datetime']
+                    rid = row['ReservationID']
+                except Exception:
+                    try:
+                        # Fallback: convert to tuple of values and take first three
+                        vals = tuple(row)
+                        s, e, rid = vals[0], vals[1], vals[2]
+                    except Exception:
+                        # Skip malformed rows
+                        continue
+
+            try:
+                sdt = datetime.fromisoformat(s)
+                edt = datetime.fromisoformat(e)
+            except Exception:
+                # Skip rows with invalid datetime formats
+                continue
+
             day = sdt.date()
             while day <= edt.date():
                 try:
-                    self.calendar.calevent_create(day, f"Booked #{rid}", 'reserved') 
+                    self.calendar.calevent_create(day, f"Booked #{rid}", 'reserved')
                 except Exception:
                     pass
                 day = day + timedelta(days=1)
@@ -426,9 +445,11 @@ class ReservationsTab(BaseTab):
 class ReturnTab(BaseTab):
     def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
+        self._reservation_map = {} # Initialize the map for ID lookup
         self.build_ui()
+        self.update_reservation_dropdown()
         self.return_info.configure(state="normal")
-        self.return_info.insert("end", "Enter Reservation ID and click 'Load' to begin processing return.")
+        self.return_info.insert("end", "Select a reservation from the dropdown and click 'Load'.")
         self.return_info.configure(state="disabled")
 
     def build_ui(self):
@@ -440,9 +461,13 @@ class ReturnTab(BaseTab):
 
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", pady=6)
-        ctk.CTkLabel(top, text="Reservation ID to return:").pack(side="left", padx=6)
-        self.return_res_id = ctk.CTkEntry(top, width=100, placeholder_text="Reservation ID")
-        self.return_res_id.pack(side="left", padx=6)
+        
+        # --- CHANGE: Replace Entry with Dropdown ---
+        ctk.CTkLabel(top, text="Reservation to return:").pack(side="left", padx=6)
+        self.return_res_var = ctk.StringVar()
+        self.return_res_dropdown = ctk.CTkOptionMenu(top, variable=self.return_res_var, values=[], width=300)
+        self.return_res_dropdown.pack(side="left", padx=6)
+        
         ctk.CTkButton(top, text="Load", command=self.load_reservation_for_return).pack(side="left", padx=6)
 
         self.return_info = ctk.CTkTextbox(frame, height=140)
@@ -469,16 +494,61 @@ class ReturnTab(BaseTab):
 
         self.damage_list_box = ctk.CTkTextbox(frame, height=10, font=("Courier New", 12))
         self.damage_list_box.pack(fill="both", pady=6, expand=True)
+        
+    def update_reservation_dropdown(self):
+        """Fetches and sets the active reservations list for the dropdown, hiding the ID."""
+        reservations_full = self.system.get_active_reservations_dropdown_fmt()
+        
+        reservations_display = []
+        self._reservation_map = {}
+        
+        for item in reservations_full:
+            # item is "ID - Plate (Customer)"
+            parts = item.split(" - ", 1) 
+            if len(parts) > 1:
+                display_text = parts[1] # Plate (Customer)
+                reservations_display.append(display_text)
+                # Map the display text back to the full string with the ID
+                self._reservation_map[display_text] = item
+            else:
+                reservations_display.append(item) 
+                self._reservation_map[item] = item
+                
+        self.return_res_dropdown.configure(values=reservations_display)
+        
+        if reservations_display:
+            self.return_res_var.set(reservations_display[0])
+        else:
+            self.return_res_var.set("No active reservations")
+            self.return_res_dropdown.configure(values=["No active reservations"])
+            
+
+    def get_selected_rid(self):
+        """Helper to extract the ID from the dropdown selection by looking up the full string."""
+        selected_display_text = self.return_res_var.get()
+        
+        if not selected_display_text or "No active reservations" in selected_display_text:
+            messagebox.showwarning("Missing", "Select an active reservation.")
+            return None
+        
+        # Look up the full string ("ID - Plate (Customer)") using the display text
+        full_value = self._reservation_map.get(selected_display_text)
+        
+        if not full_value:
+            messagebox.showerror("Invalid", "Could not find reservation details.")
+            return None
+            
+        try:
+            # The full value is "ID - Plate (Customer)". Split by " - " and take the ID.
+            return int(full_value.split(" - ")[0])
+        except Exception:
+            messagebox.showerror("Invalid", "Selected reservation format is invalid.")
+            return None
+
 
     def load_reservation_for_return(self):
-        rid_text = self.return_res_id.get().strip()
-        if not rid_text:
-            messagebox.showwarning("Missing", "Enter Reservation ID.")
-            return
-        try:
-            rid = int(rid_text)
-        except:
-            messagebox.showerror("Invalid", "Reservation ID must be numeric.")
+        rid = self.get_selected_rid()
+        if rid is None:
             return
             
         row = self.system.get_reservation_details(rid)
@@ -510,15 +580,10 @@ class ReturnTab(BaseTab):
         self.damage_list_box.configure(state="disabled")
 
     def handle_add_damage(self):
-        rid_text = self.return_res_id.get().strip()
-        if not rid_text:
-            messagebox.showwarning("Missing", "Enter Reservation ID first.")
+        rid = self.get_selected_rid()
+        if rid is None:
             return
-        try:
-            rid = int(rid_text)
-        except:
-            messagebox.showerror("Invalid", "Reservation ID must be numeric.")
-            return
+            
         condition = self.condition.get().strip()
         cost_text = self.dmg_cost.get().strip()
         notes = self.dmg_notes.get("1.0", "end").strip()
@@ -542,14 +607,8 @@ class ReturnTab(BaseTab):
         self.refresh_damage_list(rid)
 
     def handle_finalize_return(self):
-        rid_text = self.return_res_id.get().strip()
-        if not rid_text:
-            messagebox.showwarning("Missing", "Enter Reservation ID first.")
-            return
-        try:
-            rid = int(rid_text)
-        except:
-            messagebox.showerror("Invalid", "Reservation ID must be numeric.")
+        rid = self.get_selected_rid()
+        if rid is None:
             return
             
         try:
@@ -564,6 +623,8 @@ class ReturnTab(BaseTab):
             self.app_controller.refresh_reservation_list()
             self.app_controller.refresh_calendar_marks()
             self.app_controller.refresh_rent_dropdowns()
+            # --- Refresh the dropdown after finalizing a return ---
+            self.app_controller.refresh_return_dropdown()
             
             self.return_info.configure(state="normal")
             self.return_info.delete("1.0", "end")
