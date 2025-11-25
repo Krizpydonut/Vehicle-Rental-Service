@@ -107,6 +107,14 @@ class VehicleRentalService:
     
     def get_active_reservations_dates(self):
         return db.get_active_reservations_dates()
+    
+    def get_active_reservations_dropdown_fmt(self):
+        """Fetches active reservations formatted for a GUI dropdown: 'ID - Plate (Customer)'"""
+        rows = db.list_active_reservations()
+        result = []
+        for r in rows:
+            result.append(f"{r[0]} - {r[1]} ({r[3]})")
+        return result
 
     def get_bookings_for_date(self, start_day, end_day):
         rows = db.get_bookings_for_date(start_day, end_day)
