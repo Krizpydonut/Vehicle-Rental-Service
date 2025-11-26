@@ -303,12 +303,17 @@ class RentTab(BaseTab):
             return
 
         driver_flag = self.driver_var.get()
-        driver_license = ""
+        driver_license = None  # Use None for SQL NULL
+        
         if not driver_flag:
-            driver_license = self.driver_license_entry.get().strip()
-            if not driver_license:
+            driver_license_text = self.driver_license_entry.get().strip()
+            
+            if not driver_license_text:
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
+            
+            # Pass the actual text if present
+            driver_license = driver_license_text
         
         # OOD: Create Customer Object
         customer = Customer(name, phone, email, driver_license)
@@ -439,11 +444,12 @@ class ReservationsTab(BaseTab):
         self.reservations_box.insert("end", f"{'ResID':<6} {'PLATE':<10} {'MODEL':<18} {'CUSTOMER':<20} {'FROM':<19} {'TO':<19} {'STATUS':<8}\n")
         self.reservations_box.insert("end", "-"*110 + "\n")
         for row in rows:
+            # FIX: Changed key from 'CUSTOMER' to 'customer_name' to match rental_system.py
             self.reservations_box.insert("end", f"{row['ReservationID']:<6} {row['plate']:<10} {row['model']:<18} {row['customer_name']:<20} {row['start_datetime']:<19} {row['end_datetime']:<19} {row['status']:<8}\n")
         self.reservations_box.configure(state="disabled")
 
 class ReturnTab(BaseTab):
-    def __init__(self, master, app_controller):
+    def __init__(self, app_controller, master):
         super().__init__(master, app_controller)
         self._reservation_map = {} # Initialize the map for ID lookup
         self.build_ui()
