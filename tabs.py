@@ -32,15 +32,25 @@ class VehiclesTab(BaseTab):
         right = ctk.CTkFrame(frame)
         right.grid(row=0, column=1, padx=10, pady=8, sticky="nsew")
         right.grid_columnconfigure(0, weight=1)
+        
         ctk.CTkLabel(right, text="Add / Register Vehicle").pack(pady=(6,4))
-        self.entry_model = ctk.CTkEntry(right, placeholder_text="Model (e.g. Toyota Vios)")
+        
+        # --- NEW ENTRIES ---
+        self.entry_brand = ctk.CTkEntry(right, placeholder_text="Brand (e.g. Toyota)")
+        self.entry_model = ctk.CTkEntry(right, placeholder_text="Model (e.g. Vios)")
+        self.entry_year = ctk.CTkEntry(right, placeholder_text="Year (e.g. 2020)")
+        # -------------------
         self.entry_plate = ctk.CTkEntry(right, placeholder_text="Plate (unique)")
         self.entry_type = ctk.CTkEntry(right, placeholder_text="Type (Sedan/SUV/Van/..)")
         self.entry_rate = ctk.CTkEntry(right, placeholder_text="Daily Rate (number)")
+        
+        self.entry_brand.pack(padx=10, pady=4, fill="x")
         self.entry_model.pack(padx=10, pady=4, fill="x")
+        self.entry_year.pack(padx=10, pady=4, fill="x")
         self.entry_plate.pack(padx=10, pady=4, fill="x")
         self.entry_type.pack(padx=10, pady=4, fill="x")
         self.entry_rate.pack(padx=10, pady=4, fill="x")
+        
         ctk.CTkButton(right, text="Add Vehicle", command=self.handle_add_vehicle).pack(pady=10)
 
         frame.grid_rowconfigure(0, weight=1)
@@ -48,28 +58,36 @@ class VehiclesTab(BaseTab):
         frame.grid_columnconfigure(1, weight=0)
     
     def handle_add_vehicle(self):
+        # UPDATED: Get new fields
+        brand = self.entry_brand.get().strip()
         model = self.entry_model.get().strip()
+        year_text = self.entry_year.get().strip()
         plate = self.entry_plate.get().strip()
         vtype = self.entry_type.get().strip()
         rate_text = self.entry_rate.get().strip()
-        if not (model and plate and vtype and rate_text):
+        
+        if not (brand and model and year_text and plate and vtype and rate_text):
             messagebox.showwarning("Missing", "Please fill all fields.")
             return
         try:
             rate = float(rate_text)
+            year = int(year_text)
         except:
-            messagebox.showerror("Invalid", "Daily rate must be a number.")
+            messagebox.showerror("Invalid", "Daily rate and Year must be numbers.")
             return
         
-        # OOD: Create Vehicle Object
-        new_vehicle = Vehicle(model, plate, vtype, rate)
+        # OOD: Create Vehicle Object with new fields
+        new_vehicle = Vehicle(brand, model, year, plate, vtype, rate)
 
         # OOD: Pass object to System
         ok, msg = self.system.add_new_vehicle(new_vehicle)
 
         if ok:
             messagebox.showinfo("Added", f"Vehicle {plate} added.")
+            # Clear all entries
+            self.entry_brand.delete(0, "end")
             self.entry_model.delete(0, "end")
+            self.entry_year.delete(0, "end")
             self.entry_plate.delete(0, "end")
             self.entry_type.delete(0, "end")
             self.entry_rate.delete(0, "end")
@@ -86,12 +104,14 @@ class VehiclesTab(BaseTab):
         self.vehicles_box.configure(state="normal")
         self.vehicles_box.delete("1.0", "end")
         
-        self.vehicles_box.insert("end", f"{'ID':<4} {'PLATE':<14} {'MODEL':<30} {'TYPE':<10} {'RATE/day':>8}\n")
+        # UPDATED: Header to include Brand and Year
+        self.vehicles_box.insert("end", f"{'ID':<4} {'BRAND/MODEL':<30} {'YEAR':<5} {'PLATE':<12} {'TYPE':<10} {'RATE/day':>8}\n")
         self.vehicles_box.insert("end", "-"*80 + "\n")
         
         for row in rows:
-            # Using dictionary access for sqlite3.Row
-            self.vehicles_box.insert("end", f"{row['VehicleID']:<4} {row['plate']:<14} {row['model']:<30} {row['vtype']:<10} {row['daily_rate']:>8.2f}\n")
+            # UPDATED: Display fields
+            full_model = f"{row['brand']} {row['model']}"
+            self.vehicles_box.insert("end", f"{row['VehicleID']:<4} {full_model:<30} {row['year']:<5} {row['plate']:<12} {row['vtype']:<10} {row['daily_rate']:>8.2f}\n")
             
         self.vehicles_box.configure(state="disabled")
 
@@ -122,20 +142,35 @@ class RentTab(BaseTab):
         # --- Register Validation Command ---
         vcmd = (self.register(self.validate_number), '%P')
         
-        # --- Column 0, 1, 2 (Original Reservation Form) ---
+        # --- Column 0: Vehicle Selection (UPDATED) ---
         col0 = ctk.CTkFrame(form)
         col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
         col0.grid_columnconfigure(0, weight=0)
         col0.grid_columnconfigure(1, weight=1)
-        # ... (widgets for col0: Vehicle type, model, select vehicle)
 
         row_index = 0
         
         ctk.CTkLabel(col0, text="Vehicle Type:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_type_var = ctk.StringVar()
-        self.vehicle_type_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_type_var, command=self.update_model_dropdown)
+        self.vehicle_type_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_type_var, command=self.update_brand_dropdown)
         self.vehicle_type_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
+
+        ctk.CTkLabel(col0, text="Vehicle Brand:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.vehicle_brand_var = ctk.StringVar()
+        # COMMAND UPDATED: Calls update_year_dropdown
+        self.vehicle_brand_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_brand_var, command=self.update_year_dropdown)
+        self.vehicle_brand_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+        
+        # --- NEW: Vehicle Year Dropdown ---
+        ctk.CTkLabel(col0, text="Vehicle Year:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
+        self.vehicle_year_var = ctk.StringVar()
+        # COMMAND UPDATED: Calls update_model_dropdown
+        self.vehicle_year_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_year_var, command=self.update_model_dropdown)
+        self.vehicle_year_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
+        row_index += 1
+        # -----------------------------------
 
         ctk.CTkLabel(col0, text="Vehicle Model:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_model_var = ctk.StringVar()
@@ -277,27 +312,63 @@ class RentTab(BaseTab):
         self.vehicle_type_dropdown.configure(values=types)
         if types:
             self.vehicle_type_var.set(types[0])
-            self.update_model_dropdown(types[0])
+            self.update_brand_dropdown(types[0]) # Next step
         else:
+            # Clear if no types found
             self.vehicle_type_var.set("")
+            self.update_brand_dropdown("")
+
+    def update_brand_dropdown(self, selected_type):
+        # 2. Get brands based on type and configure dropdown
+        brands = self.system.get_brands_by_type(selected_type)
+        self.vehicle_brand_dropdown.configure(values=brands)
+        if brands:
+            self.vehicle_brand_var.set(brands[0])
+            self.update_year_dropdown(brands[0]) # Next step
+        else:
+            # Clear if no brands found
+            self.vehicle_brand_var.set("")
+            self.update_year_dropdown("")
+
+    def update_year_dropdown(self, selected_brand):
+        """NEW: Updates the year dropdown based on selected type and brand."""
+        selected_type = self.vehicle_type_var.get()
+        # 3. Get years based on type and brand and configure dropdown
+        years = self.system.get_years_by_type_and_brand(selected_type, selected_brand)
+        self.vehicle_year_dropdown.configure(values=years)
+        if years:
+            self.vehicle_year_var.set(years[0])
+            self.update_model_dropdown(years[0]) # Next step (Pass year)
+        else:
+            # Clear if no years found
+            self.vehicle_year_var.set("")
             self.update_model_dropdown("")
 
-    def update_model_dropdown(self, selected_type):
-        models = self.system.get_models_by_type(selected_type)
+    def update_model_dropdown(self, selected_year):
+        """UPDATED: Updates model dropdown based on type, brand, and year."""
+        selected_type = self.vehicle_type_var.get()
+        selected_brand = self.vehicle_brand_var.get()
+        # 4. Get models based on type, brand, year and configure dropdown
+        models = self.system.get_models_by_type_brand_and_year(selected_type, selected_brand, selected_year)
         self.vehicle_model_dropdown.configure(values=models)
         if models:
             self.vehicle_model_var.set(models[0])
-            self.update_vehicle_dropdown(models[0])
+            self.update_vehicle_dropdown(models[0]) # Next step (Pass model)
         else:
+            # Clear if no models found
             self.vehicle_model_var.set("")
             self.update_vehicle_dropdown("")
 
     def update_vehicle_dropdown(self, selected_model):
+        """UPDATED: Filters vehicles by type, brand, year, and model."""
         selected_type = self.vehicle_type_var.get()
-        vehicles = self.system.get_available_vehicles_list(selected_type, selected_model)
+        selected_brand = self.vehicle_brand_var.get()
+        selected_year = self.vehicle_year_var.get()
+        # 5. Get available vehicles
+        vehicles = self.system.get_available_vehicles_list(selected_type, selected_brand, selected_year, selected_model)
         self.vehicle_dropdown.configure(values=vehicles)
         if vehicles:
-            self.vehicle_id_var.set(vehicles[0])
+            self.vehicle_id_var.set(vehicles[0]) # Final selection
         else:
             self.vehicle_id_var.set("")
             
@@ -350,6 +421,8 @@ class RentTab(BaseTab):
             if not driver_license:
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
+        else:
+             driver_license = "" # Company driver, no license needed
         
         # OOD: Create Customer Object
         customer = Customer(name, phone, email, driver_license)
@@ -368,6 +441,14 @@ class RentTab(BaseTab):
         self.app_controller.refresh_reservation_list()
         self.app_controller.refresh_calendar_marks()
         self.app_controller.refresh_return_dropdown()
+        
+        # --- FIX APPLIED HERE: Clear all customer and location fields ---
+        self.cust_name.delete(0, "end")
+        self.cust_phone.delete(0, "end")
+        self.cust_email.delete(0, "end")
+        self.location_entry.delete(0, "end")
+        self.driver_license_entry.delete(0, "end")
+        # -----------------------------------------------------------------
         
     def handle_update_reservation(self):
         res_id_text = self.update_res_id.get().strip()
