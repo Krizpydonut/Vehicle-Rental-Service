@@ -140,7 +140,6 @@ def find_or_create_customer(name, phone, email, license, government_id="N/A"):
         raise e
 
 def add_vehicle(brand, model, year, plate, vtype, rate):
-    """Adds a new vehicle including brand and year."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cur = conn.cursor()
@@ -154,7 +153,6 @@ def add_vehicle(brand, model, year, plate, vtype, rate):
         return False, str(e)
 
 def get_all_vehicles():
-    """Returns all vehicle details including brand and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT VehicleID, brand, model, year, plate, vtype, daily_rate FROM Vehicle ORDER BY VehicleID")
@@ -171,7 +169,6 @@ def get_vehicle_types():
     return types
 
 def get_brands_by_type(vtype):
-    """NEW: Fetches distinct brands for a selected vehicle type."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT brand FROM Vehicle WHERE vtype=? ORDER BY brand", (vtype,))
@@ -180,7 +177,6 @@ def get_brands_by_type(vtype):
     return brands
 
 def get_years_by_type_and_brand(vtype, brand):
-    """NEW: Fetches distinct years for a selected vehicle type and brand."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT year FROM Vehicle WHERE vtype=? AND brand=? ORDER BY year DESC", (vtype, brand))
@@ -189,7 +185,6 @@ def get_years_by_type_and_brand(vtype, brand):
     return years
 
 def get_models_by_type_brand_and_year(vtype, brand, year):
-    """UPDATED: Filters models by type, brand, and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT model FROM Vehicle WHERE vtype=? AND brand=? AND year=? ORDER BY model", (vtype, brand, year))
@@ -198,7 +193,6 @@ def get_models_by_type_brand_and_year(vtype, brand, year):
     return models
 
 def get_available_vehicles_by_model(vtype, brand, year, model):
-    """UPDATED: Filters available vehicles by type, brand, year, and model."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT VehicleID, plate FROM Vehicle WHERE vtype=? AND brand=? AND year=? AND model=? AND available=1 ORDER BY plate", (vtype, brand, year, model))
@@ -207,10 +201,6 @@ def get_available_vehicles_by_model(vtype, brand, year, model):
     return vehicles
 
 def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso, exclude_res_id=None):
-    """
-    Checks if a vehicle is available for the given period.
-    Now accepts an optional exclude_res_id to ignore the reservation being updated.
-    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
@@ -238,7 +228,6 @@ def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso, exclude_res_id=No
     return not has_overlap
 
 def calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag):
-    """Calculates the estimated total cost."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT daily_rate FROM Vehicle WHERE VehicleID=?", (vehicle_id,))
@@ -269,7 +258,6 @@ def calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag):
     return total_cost, driver_fee
 
 def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_dt_iso, location):
-    """Creates a new reservation entry and initial payment record."""
     total_cost, driver_fee = calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag)
     
     conn = sqlite3.connect(DB_FILE)
@@ -292,11 +280,6 @@ def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_d
     return res_id, total_cost
 
 def update_reservation_end_date(res_id, new_end_dt_iso):
-    """
-    Updates the end_datetime of an active reservation, recalculates total_cost 
-    and driver_fee, and updates the Payment record.
-    Returns the new total cost.
-    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
@@ -343,11 +326,11 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
     return total_cost
 
 def list_active_reservations():
-    """Returns a list of all active reservations with customer name and vehicle details."""
+    """Returns a list of all active reservations with customer name, location, and vehicle details."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
-    SELECT r.ReservationID, v.plate, v.model, c.name, r.start_datetime, r.end_datetime, r.status
+    SELECT r.ReservationID, v.plate, v.model, c.name, r.start_datetime, r.end_datetime, r.status, r.location
     FROM Reservation r 
     JOIN Vehicle v ON r.vehicle_id = v.VehicleID
     JOIN Customer c ON r.customer_id = c.CustomerID
@@ -367,7 +350,6 @@ def get_active_reservations_dates():
     return rows
 
 def get_bookings_for_date(start_day_iso, end_day_iso):
-    """Returns reservation details that overlap with a specific date."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
@@ -432,10 +414,7 @@ def get_final_costs(rid):
     return base, dmg_total, row[1] 
 
 def finalize_reservation(rid, final_cost, distance_km):
-    """
-    Marks a reservation as returned, updates the final cost, distance_km, 
-    and updates the Vehicle availability.
-    """
+    
     base, dmg_total, vehicle_id = get_final_costs(rid)
     
     conn = sqlite3.connect(DB_FILE)
@@ -510,20 +489,13 @@ def finish_maintenance(mid):
     conn.commit()
     conn.close()
 
-# --- Vehicle Usage Report Function (UPDATED for distance_km) ---
 def get_vehicle_usage_report():
-    """
-    Calculates total usage duration (in hours), reservation count, and total distance traveled 
-    for each vehicle based on 'active' and 'returned' reservations.
-    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # Get all vehicles first
     cur.execute("SELECT VehicleID, brand, model, plate FROM Vehicle")
     all_vehicles = cur.fetchall()
-    
-    # Initialize usage data for all vehicles
+
     usage_data = {}
     for vid, brand, model, plate in all_vehicles:
         usage_data[vid] = {
@@ -533,10 +505,9 @@ def get_vehicle_usage_report():
             'model': model,
             'usage_hours': 0.0,
             'reservation_count': 0,
-            'total_distance_km': 0.0 # NEW: Initialize distance
+            'total_distance_km': 0.0
         }
-
-    # Get reservation data for calculation
+        
     cur.execute("""
     SELECT 
         r.vehicle_id, 
@@ -557,16 +528,38 @@ def get_vehicle_usage_report():
                 end_dt = datetime.fromisoformat(end_dt_iso)
                 
                 duration = end_dt - start_dt
-                # Calculate duration in hours
                 duration_hours = duration.total_seconds() / 3600.0
                 
                 usage_data[vid]['usage_hours'] += duration_hours
                 usage_data[vid]['reservation_count'] += 1
-                usage_data[vid]['total_distance_km'] += distance_km or 0.0 # Sum reported distance
+                usage_data[vid]['total_distance_km'] += distance_km or 0.0
             except Exception:
-                # Skip invalid date entries if parsing fails
                 continue
                 
     return list(usage_data.values())
+
+def get_location_usage_report():
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
     
+    cur.execute("""
+    SELECT location, COUNT(ReservationID) AS reservation_count
+    FROM Reservation
+    WHERE status IN ('active', 'returned') AND location IS NOT NULL AND location != ''
+    GROUP BY location
+    ORDER BY reservation_count DESC
+    """)
+    
+    rows = cur.fetchall()
+    conn.close()
+    
+    results = []
+    for location, count in rows:
+        results.append({
+            'location': location,
+            'reservation_count': count
+        })
+        
+    return results
+
 init_db()

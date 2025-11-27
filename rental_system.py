@@ -106,7 +106,8 @@ class VehicleRentalService:
                 "customer_name": r[3],
                 "start_datetime": r[4],
                 "end_datetime": r[5],
-                "status": r[6]
+                "status": r[6],
+                "location": r[7]
             })
         return result
     
@@ -194,7 +195,6 @@ class VehicleRentalService:
     def finish_maintenance(self, mid):
         db.finish_maintenance(mid)
         
-    # --- UPDATED: Report Method ---
     def get_usage_report(self):
         """
         Retrieves vehicle usage, formats total distance traveled, 
@@ -203,14 +203,13 @@ class VehicleRentalService:
         report_data = db.get_vehicle_usage_report()
         
         for item in report_data:
-            # Distance is now retrieved directly from DB (sum of distance_km)
             item['total_distance_km'] = item['total_distance_km']
-            
-            # Convert usage hours to a readable format (Days and Hours)
             hours = item['usage_hours']
             days = int(hours // 24)
             remaining_hours = int(hours % 24)
-            # Use f-string for displayable string
             item['usage_display'] = f"{days} days, {remaining_hours} hours"
             
         return report_data
+    
+    def get_location_report(self):
+        return db.get_location_usage_report()

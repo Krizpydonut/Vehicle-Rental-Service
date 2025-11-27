@@ -26,13 +26,8 @@ class LoginWindow(ctk.CTk):
         self.correct_password = "admin123"
 
     def handle_login(self):
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
-        if not username or not password:
-            messagebox.showwarning("Missing", "Enter both username and password.")
-            return
-        if username == self.correct_username and password == self.correct_password:
+        if self.username_entry.get().strip() == self.correct_username and self.password_entry.get().strip() == self.correct_password:
             self.login_successful = True
-            self.destroy()
+            self.quit()
         else:
             messagebox.showerror("Login Failed", "Incorrect username or password.")
