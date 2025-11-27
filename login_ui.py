@@ -1,5 +1,3 @@
-# vehiclerentalservice/login_ui.py
-
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -10,7 +8,6 @@ class LoginWindow(ctk.CTk):
         self.geometry("400x250")
         self.resizable(False, False)
         
-        # Flag to track login status for the main controller
         self.login_successful = False
 
         ctk.CTkLabel(self, text="Please login", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=20)
@@ -20,7 +17,6 @@ class LoginWindow(ctk.CTk):
         self.password_entry = ctk.CTkEntry(self, placeholder_text="Password", show="*")
         self.password_entry.pack(pady=10, padx=40, fill="x")
 
-        # --- Added feature: Bind the Enter key to the handle_login method ---
         self.username_entry.bind('<Return>', lambda event: self.handle_login())
         self.password_entry.bind('<Return>', lambda event: self.handle_login())
         
@@ -30,13 +26,9 @@ class LoginWindow(ctk.CTk):
         self.correct_password = "admin123"
 
     def handle_login(self):
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
-        if not username or not password:
-            messagebox.showwarning("Missing", "Enter both username and password.")
-            return
-        if username == self.correct_username and password == self.correct_password:
+        # ... validation code ...
+        if self.username_entry.get().strip() == self.correct_username and self.password_entry.get().strip() == self.correct_password:
             self.login_successful = True
-            self.destroy() # Close the login window
+            self.quit() # <-- Use self.quit() to stop mainloop
         else:
             messagebox.showerror("Login Failed", "Incorrect username or password.")
