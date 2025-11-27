@@ -9,7 +9,6 @@ class BaseTab(ctk.CTkFrame):
     def __init__(self, master, app_controller, **kwargs):
         super().__init__(master, **kwargs)
         self.app_controller = app_controller 
-        # Shortcut to access the system logic
         self.system = app_controller.system
         self.grid_columnconfigure(0, weight=1)
 
@@ -35,11 +34,9 @@ class VehiclesTab(BaseTab):
         
         ctk.CTkLabel(right, text="Add / Register Vehicle").pack(pady=(6,4))
         
-        # --- NEW ENTRIES ---
         self.entry_brand = ctk.CTkEntry(right, placeholder_text="Brand (e.g. Toyota)")
         self.entry_model = ctk.CTkEntry(right, placeholder_text="Model (e.g. Vios)")
         self.entry_year = ctk.CTkEntry(right, placeholder_text="Year (e.g. 2020)")
-        # -------------------
         self.entry_plate = ctk.CTkEntry(right, placeholder_text="Plate (unique)")
         self.entry_type = ctk.CTkEntry(right, placeholder_text="Type (Sedan/SUV/Van/..)")
         self.entry_rate = ctk.CTkEntry(right, placeholder_text="Daily Rate (number)")
@@ -58,7 +55,6 @@ class VehiclesTab(BaseTab):
         frame.grid_columnconfigure(1, weight=0)
     
     def handle_add_vehicle(self):
-        # UPDATED: Get new fields
         brand = self.entry_brand.get().strip()
         model = self.entry_model.get().strip()
         year_text = self.entry_year.get().strip()
@@ -76,25 +72,28 @@ class VehiclesTab(BaseTab):
             messagebox.showerror("Invalid", "Daily rate and Year must be numbers.")
             return
         
-        # OOD: Create Vehicle Object with new fields
         new_vehicle = Vehicle(brand, model, year, plate, vtype, rate)
 
-        # OOD: Pass object to System
         ok, msg = self.system.add_new_vehicle(new_vehicle)
 
         if ok:
             messagebox.showinfo("Added", f"Vehicle {plate} added.")
-            # Clear all entries
+            
             self.entry_brand.delete(0, "end")
             self.entry_model.delete(0, "end")
             self.entry_year.delete(0, "end")
             self.entry_plate.delete(0, "end")
             self.entry_type.delete(0, "end")
             self.entry_rate.delete(0, "end")
+            
             self.refresh_vehicle_list()
             self.app_controller.refresh_calendar_marks()
             self.app_controller.refresh_rent_dropdowns()
             self.app_controller.update_maint_vehicle_dropdown()
+            
+            if "Reports" in self.app_controller.tab_instances:
+                self.app_controller.tab_instances["Reports"].refresh_report()
+
         elif msg == "duplicate":
             messagebox.showerror("Error", "A vehicle with this plate already exists!")
             
@@ -104,12 +103,10 @@ class VehiclesTab(BaseTab):
         self.vehicles_box.configure(state="normal")
         self.vehicles_box.delete("1.0", "end")
         
-        # UPDATED: Header to include Brand and Year
         self.vehicles_box.insert("end", f"{'ID':<4} {'BRAND/MODEL':<30} {'YEAR':<5} {'PLATE':<12} {'TYPE':<10} {'RATE/day':>8}\n")
         self.vehicles_box.insert("end", "-"*80 + "\n")
         
         for row in rows:
-            # UPDATED: Display fields
             full_model = f"{row['brand']} {row['model']}"
             self.vehicles_box.insert("end", f"{row['VehicleID']:<4} {full_model:<30} {row['year']:<5} {row['plate']:<12} {row['vtype']:<10} {row['daily_rate']:>8.2f}\n")
             
@@ -122,7 +119,6 @@ class RentTab(BaseTab):
         self.update_type_dropdown()
 
     def validate_number(self, P):
-        """Callback to validate if input P is a number or empty string."""
         if P == "": 
             return True
         return P.isdigit()
@@ -139,10 +135,8 @@ class RentTab(BaseTab):
         form.grid_columnconfigure(1, weight=1)
         form.grid_columnconfigure(2, weight=1)
         
-        # --- Register Validation Command ---
         vcmd = (self.register(self.validate_number), '%P')
         
-        # --- Column 0: Vehicle Selection (UPDATED) ---
         col0 = ctk.CTkFrame(form)
         col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
         col0.grid_columnconfigure(0, weight=0)
@@ -158,19 +152,15 @@ class RentTab(BaseTab):
 
         ctk.CTkLabel(col0, text="Vehicle Brand:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_brand_var = ctk.StringVar()
-        # COMMAND UPDATED: Calls update_year_dropdown
         self.vehicle_brand_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_brand_var, command=self.update_year_dropdown)
         self.vehicle_brand_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
         
-        # --- NEW: Vehicle Year Dropdown ---
         ctk.CTkLabel(col0, text="Vehicle Year:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_year_var = ctk.StringVar()
-        # COMMAND UPDATED: Calls update_model_dropdown
         self.vehicle_year_dropdown = ctk.CTkOptionMenu(col0, values=[], variable=self.vehicle_year_var, command=self.update_model_dropdown)
         self.vehicle_year_dropdown.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
-        # -----------------------------------
 
         ctk.CTkLabel(col0, text="Vehicle Model:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
         self.vehicle_model_var = ctk.StringVar()
@@ -229,7 +219,6 @@ class RentTab(BaseTab):
         row_index += 1
 
         ctk.CTkLabel(col2, text="Phone:").grid(row=row_index, column=0, padx=5, pady=7, sticky="w")
-        # --- APPLIED VALIDATION HERE ---
         self.cust_phone = ctk.CTkEntry(col2, placeholder_text="Phone number", validate="key", validatecommand=vcmd)
         self.cust_phone.grid(row=row_index, column=1, padx=5, pady=7, sticky="ew")
         row_index += 1
@@ -256,9 +245,6 @@ class RentTab(BaseTab):
         
         self.toggle_driver_fields()
 
-        # --- NEW SECTION: Update Reservation ---
-        
-        
         update_frame = ctk.CTkFrame(tab)
         update_frame.pack(padx=5, pady=5, fill="x")
         update_frame.grid_columnconfigure(0, weight=1)
@@ -267,7 +253,6 @@ class RentTab(BaseTab):
         ctk.CTkLabel(update_frame, text="Update Active Reservation (Change Return Date)", 
                      font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=0, columnspan=2, pady=(5,10))
 
-        # Left Column for Update
         update_left = ctk.CTkFrame(update_frame)
         update_left.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         update_left.grid_columnconfigure(0, weight=0)
@@ -277,7 +262,6 @@ class RentTab(BaseTab):
         self.update_res_id = ctk.CTkEntry(update_left, placeholder_text="Enter Active Res ID")
         self.update_res_id.grid(row=0, column=1, padx=5, pady=7, sticky="ew")
 
-        # Right Column for Update
         update_right = ctk.CTkFrame(update_frame)
         update_right.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
         update_right.grid_columnconfigure(0, weight=0)
@@ -312,63 +296,52 @@ class RentTab(BaseTab):
         self.vehicle_type_dropdown.configure(values=types)
         if types:
             self.vehicle_type_var.set(types[0])
-            self.update_brand_dropdown(types[0]) # Next step
+            self.update_brand_dropdown(types[0])
         else:
-            # Clear if no types found
             self.vehicle_type_var.set("")
             self.update_brand_dropdown("")
 
     def update_brand_dropdown(self, selected_type):
-        # 2. Get brands based on type and configure dropdown
         brands = self.system.get_brands_by_type(selected_type)
         self.vehicle_brand_dropdown.configure(values=brands)
         if brands:
             self.vehicle_brand_var.set(brands[0])
-            self.update_year_dropdown(brands[0]) # Next step
+            self.update_year_dropdown(brands[0])
         else:
-            # Clear if no brands found
             self.vehicle_brand_var.set("")
             self.update_year_dropdown("")
 
     def update_year_dropdown(self, selected_brand):
-        """NEW: Updates the year dropdown based on selected type and brand."""
         selected_type = self.vehicle_type_var.get()
-        # 3. Get years based on type and brand and configure dropdown
         years = self.system.get_years_by_type_and_brand(selected_type, selected_brand)
         self.vehicle_year_dropdown.configure(values=years)
         if years:
             self.vehicle_year_var.set(years[0])
-            self.update_model_dropdown(years[0]) # Next step (Pass year)
+            self.update_model_dropdown(years[0])
         else:
-            # Clear if no years found
             self.vehicle_year_var.set("")
             self.update_model_dropdown("")
 
     def update_model_dropdown(self, selected_year):
-        """UPDATED: Updates model dropdown based on type, brand, and year."""
         selected_type = self.vehicle_type_var.get()
         selected_brand = self.vehicle_brand_var.get()
-        # 4. Get models based on type, brand, year and configure dropdown
         models = self.system.get_models_by_type_brand_and_year(selected_type, selected_brand, selected_year)
         self.vehicle_model_dropdown.configure(values=models)
         if models:
             self.vehicle_model_var.set(models[0])
-            self.update_vehicle_dropdown(models[0]) # Next step (Pass model)
+            self.update_vehicle_dropdown(models[0])
         else:
-            # Clear if no models found
             self.vehicle_model_var.set("")
             self.update_vehicle_dropdown("")
 
     def update_vehicle_dropdown(self, selected_model):
-        """UPDATED: Filters vehicles by type, brand, year, and model."""
         selected_type = self.vehicle_type_var.get()
         selected_brand = self.vehicle_brand_var.get()
         selected_year = self.vehicle_year_var.get()
-        # 5. Get available vehicles
         vehicles = self.system.get_available_vehicles_list(selected_type, selected_brand, selected_year, selected_model)
         self.vehicle_dropdown.configure(values=vehicles)
         if vehicles:
-            self.vehicle_id_var.set(vehicles[0]) # Final selection
+            self.vehicle_id_var.set(vehicles[0])
         else:
             self.vehicle_id_var.set("")
             
@@ -422,13 +395,11 @@ class RentTab(BaseTab):
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
         else:
-             driver_license = "" # Company driver, no license needed
+             driver_license = ""
         
-        # OOD: Create Customer Object
         customer = Customer(name, phone, email, driver_license)
 
         try:
-            # OOD: Pass to system controller
             res_id, total_cost = self.system.make_reservation(
                 vehicle_id, customer, start_dt.isoformat(), end_dt.isoformat(), driver_flag, location
             )
@@ -442,13 +413,14 @@ class RentTab(BaseTab):
         self.app_controller.refresh_calendar_marks()
         self.app_controller.refresh_return_dropdown()
         
-        # --- FIX APPLIED HERE: Clear all customer and location fields ---
+        if "Reports" in self.app_controller.tab_instances:
+            self.app_controller.tab_instances["Reports"].refresh_report()
+        
         self.cust_name.delete(0, "end")
         self.cust_phone.delete(0, "end")
         self.cust_email.delete(0, "end")
         self.location_entry.delete(0, "end")
         self.driver_license_entry.delete(0, "end")
-        # -----------------------------------------------------------------
         
     def handle_update_reservation(self):
         res_id_text = self.update_res_id.get().strip()
@@ -463,22 +435,21 @@ class RentTab(BaseTab):
             return
 
         try:
-            # Re-use the parser for the new return date/time
             new_end_dt = self.parse_datetime_inputs(self.update_return_date, self.update_return_time)
         except Exception as e:
             messagebox.showerror("Invalid datetime", f"New return datetime: {str(e)}")
             return
             
         try:
-            # OOD: Pass to system controller
             new_total_cost = self.system.update_reservation_return(res_id, new_end_dt.isoformat())
             messagebox.showinfo("Updated", 
                                 f"Reservation {res_id} updated. New return datetime: {new_end_dt.strftime('%Y-%m-%d %H:%M')}. "
                                 f"New estimated total cost: {new_total_cost:.2f}")
             
-            # Refresh related tabs
             self.app_controller.refresh_reservation_list()
             self.app_controller.refresh_calendar_marks()
+            if "Reports" in self.app_controller.tab_instances:
+                self.app_controller.tab_instances["Reports"].refresh_report()
             
         except ValueError as ve:
             messagebox.showerror("Error", str(ve))
@@ -520,30 +491,24 @@ class CalendarTab(BaseTab):
         rows = self.system.get_active_reservations_dates()
 
         for row in rows:
-            # Try to extract start, end, reservation id from various possible row shapes
             try:
-                # Common case: simple tuple/list like (start, end, rid, ...)
                 s, e, rid = row
             except Exception:
                 try:
-                    # sqlite3.Row or dict-like access
                     s = row['start_datetime']
                     e = row['end_datetime']
                     rid = row['ReservationID']
                 except Exception:
                     try:
-                        # Fallback: convert to tuple of values and take first three
                         vals = tuple(row)
                         s, e, rid = vals[0], vals[1], vals[2]
                     except Exception:
-                        # Skip malformed rows
                         continue
 
             try:
                 sdt = datetime.fromisoformat(s)
                 edt = datetime.fromisoformat(e)
             except Exception:
-                # Skip rows with invalid datetime formats
                 continue
 
             day = sdt.date()
@@ -602,12 +567,21 @@ class ReservationsTab(BaseTab):
 class ReturnTab(BaseTab):
     def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
-        self._reservation_map = {} # Initialize the map for ID lookup
+        self._reservation_map = {}
         self.build_ui()
         self.update_reservation_dropdown()
         self.return_info.configure(state="normal")
         self.return_info.insert("end", "Select a reservation from the dropdown and click 'Load'.")
         self.return_info.configure(state="disabled")
+        
+    def validate_distance(self, P):
+        """Callback to validate if input P is a positive float or empty string."""
+        if P == "": 
+            return True
+        try:
+            return float(P) >= 0.0
+        except ValueError:
+            return False
 
     def build_ui(self):
         tab = self
@@ -619,7 +593,6 @@ class ReturnTab(BaseTab):
         top = ctk.CTkFrame(frame)
         top.pack(fill="x", pady=6)
         
-        # --- CHANGE: Replace Entry with Dropdown ---
         ctk.CTkLabel(top, text="Reservation to return:").pack(side="left", padx=6)
         self.return_res_var = ctk.StringVar()
         self.return_res_dropdown = ctk.CTkOptionMenu(top, variable=self.return_res_var, values=[], width=300)
@@ -629,6 +602,15 @@ class ReturnTab(BaseTab):
 
         self.return_info = ctk.CTkTextbox(frame, height=140)
         self.return_info.pack(fill="x", pady=6)
+        
+        distance_frame = ctk.CTkFrame(frame)
+        distance_frame.pack(fill="x", pady=6)
+        distance_frame.grid_columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(distance_frame, text="Distance Traveled (km):").grid(row=0, column=0, sticky="w", padx=4, pady=4)
+        vcmd = (self.register(self.validate_distance), '%P')
+        self.distance_km_entry = ctk.CTkEntry(distance_frame, placeholder_text="e.g. 150.5 km", validate="key", validatecommand=vcmd)
+        self.distance_km_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
 
         dmg_frame = ctk.CTkFrame(frame)
         dmg_frame.pack(fill="x", pady=6)
@@ -653,19 +635,16 @@ class ReturnTab(BaseTab):
         self.damage_list_box.pack(fill="both", pady=6, expand=True)
         
     def update_reservation_dropdown(self):
-        """Fetches and sets the active reservations list for the dropdown, hiding the ID."""
         reservations_full = self.system.get_active_reservations_dropdown_fmt()
         
         reservations_display = []
         self._reservation_map = {}
         
         for item in reservations_full:
-            # item is "ID - Plate (Customer)"
             parts = item.split(" - ", 1) 
             if len(parts) > 1:
-                display_text = parts[1] # Plate (Customer)
+                display_text = parts[1]
                 reservations_display.append(display_text)
-                # Map the display text back to the full string with the ID
                 self._reservation_map[display_text] = item
             else:
                 reservations_display.append(item) 
@@ -681,14 +660,12 @@ class ReturnTab(BaseTab):
             
 
     def get_selected_rid(self):
-        """Helper to extract the ID from the dropdown selection by looking up the full string."""
         selected_display_text = self.return_res_var.get()
         
         if not selected_display_text or "No active reservations" in selected_display_text:
             messagebox.showwarning("Missing", "Select an active reservation.")
             return None
         
-        # Look up the full string ("ID - Plate (Customer)") using the display text
         full_value = self._reservation_map.get(selected_display_text)
         
         if not full_value:
@@ -696,7 +673,6 @@ class ReturnTab(BaseTab):
             return None
             
         try:
-            # The full value is "ID - Plate (Customer)". Split by " - " and take the ID.
             return int(full_value.split(" - ")[0])
         except Exception:
             messagebox.showerror("Invalid", "Selected reservation format is invalid.")
@@ -720,6 +696,9 @@ class ReturnTab(BaseTab):
         self.return_info.insert("end", info)
         self.return_info.configure(state="disabled")
         self.refresh_damage_list(rid)
+        
+        self.distance_km_entry.delete(0, "end")
+
 
     def refresh_damage_list(self, reservation_id):
         rows = self.system.get_damage_contracts(reservation_id)
@@ -753,7 +732,6 @@ class ReturnTab(BaseTab):
             messagebox.showerror("Invalid", "Cost must be numeric.")
             return
         
-        # OOD: Create Documentation Object
         doc = Documentation(rid)
         doc.generateDocument(condition, cost, notes)
         
@@ -768,29 +746,42 @@ class ReturnTab(BaseTab):
         if rid is None:
             return
             
+        distance_text = self.distance_km_entry.get().strip()
+        if not distance_text:
+            messagebox.showwarning("Missing", "Please enter the distance traveled (km).")
+            return
         try:
-            # OOD: Delegate finalized logic to system
-            base, dmg_total, final = self.system.finalize_return(rid)
+            distance_km = float(distance_text)
+            if distance_km < 0:
+                 raise ValueError("Distance cannot be negative.")
+        except:
+            messagebox.showerror("Invalid", "Distance must be a valid non-negative number.")
+            return
+            
+        try:
+            base, dmg_total, final = self.system.finalize_return(rid, distance_km)
         except Exception:
             messagebox.showerror("Error", "Reservation not found or invalid.")
             return
         
-        if messagebox.askyesno("Finalize Return", f"Base total: {base:.2f}\nDamage total: {dmg_total:.2f}\nFinal amount due from customer: {final:.2f}\n\nMark reservation as returned?"):
+        if messagebox.askyesno("Finalize Return", f"Base total: {base:.2f}\nDamage total: {dmg_total:.2f}\nFinal amount due from customer: {final:.2f}\nDistance reported: {distance_km:.2f} km\n\nMark reservation as returned?"):
             messagebox.showinfo("Returned", "Reservation marked returned.")
             self.app_controller.refresh_reservation_list()
             self.app_controller.refresh_calendar_marks()
             self.app_controller.refresh_rent_dropdowns()
-            # --- Refresh the dropdown after finalizing a return ---
             self.app_controller.refresh_return_dropdown()
-            
+            if "Reports" in self.app_controller.tab_instances:
+                self.app_controller.tab_instances["Reports"].refresh_report()
+
             self.return_info.configure(state="normal")
             self.return_info.delete("1.0", "end")
-            self.return_info.insert("end", "Reservation finalized and marked returned.")
+            self.return_info.insert("end", f"Reservation finalized and marked returned. Distance: {distance_km:.2f} km")
             self.return_info.configure(state="disabled")
             self.damage_list_box.configure(state="normal")
             self.damage_list_box.delete("1.0", "end")
             self.damage_list_box.insert("end", "No damage entries (reservation closed).")
             self.damage_list_box.configure(state="disabled")
+            self.distance_km_entry.delete(0, "end")
 
 class MaintenanceTab(BaseTab):
     def __init__(self, master, app_controller):
@@ -887,10 +878,8 @@ class MaintenanceTab(BaseTab):
 
         notes = self.maint_notes_entry.get("1.0", "end").strip()
         
-        # OOD: Create Record Object
         record = MaintenanceRecord(vid, checklist_str, cost, notes)
 
-        # OOD: Pass to System
         success, msg = self.system.start_maintenance(record)
         if success:
             messagebox.showinfo("Started", "Vehicle sent to maintenance.")
@@ -932,3 +921,84 @@ class MaintenanceTab(BaseTab):
         self.finish_maint_id.delete(0, "end")
         self.refresh_maintenance_list()
         self.app_controller.refresh_rent_dropdowns()
+
+# --- NEW: Vehicle Usage Report Tab ---
+class ReportTab(BaseTab):
+    def __init__(self, master, app_controller):
+        super().__init__(master, app_controller)
+        self.build_ui()
+        self.refresh_report()
+
+    def build_ui(self):
+        header = ctk.CTkLabel(self, text="Vehicle Usage Report", font=ctk.CTkFont(size=18, weight="bold"))
+        header.pack(pady=(10,6))
+
+        info_label = ctk.CTkLabel(self, text="Distance is the reported distance from returns.", text_color="green")
+        info_label.pack(pady=(0, 5))
+
+        btn_frame = ctk.CTkFrame(self)
+        btn_frame.pack(pady=5, padx=10, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="Refresh Report", command=self.refresh_report).pack(side="right", padx=10)
+
+        self.report_box = ctk.CTkTextbox(self, font=("Courier New", 12))
+        self.report_box.pack(padx=10, pady=10, fill="both", expand=True)
+        
+    def refresh_report(self):
+        try:
+            report_data = self.system.get_usage_report()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load report data: {e}")
+            self.report_box.configure(state="normal")
+            self.report_box.delete("1.0", "end")
+            self.report_box.insert("end", "Error loading report.")
+            self.report_box.configure(state="disabled")
+            return
+            
+        self.report_box.configure(state="normal")
+        self.report_box.delete("1.0", "end")
+
+        if not report_data:
+            self.report_box.insert("end", "No vehicle usage data available.")
+            self.report_box.configure(state="disabled")
+            return
+
+        # 1. Title/Header
+        self.report_box.insert("end", "--- Vehicle Usage Report ---\n\n")
+        
+        header = f"{'PLATE':<10} {'VEHICLE':<25} {'RESERVATIONS':<15} {'TOTAL USAGE (D:H)':<20} {'TOTAL DISTANCE (km)':<25}\n"
+        self.report_box.insert("end", header)
+        self.report_box.insert("end", "="*95 + "\n")
+
+        # Sort by reservation count (descending) to easily find most used
+        count_sorted = sorted(report_data, key=lambda x: x['reservation_count'], reverse=True)
+        
+        # Most Used Car
+        most_used = count_sorted[0]
+        self.report_box.insert("end", "--- MOST USED VEHICLE (by Reservation Count) ---\n")
+        self.report_box.insert("end", f"{most_used['plate']:<10} {most_used['brand']} {most_used['model']:<25} {most_used['reservation_count']:<15} {most_used['usage_display']:<20} {most_used['total_distance_km']:<25.2f}\n")
+        self.report_box.insert("end", "\n")
+
+        # Least Used Car (Lowest count first, then lowest hours)
+        least_used_data = sorted(report_data, key=lambda x: (x['reservation_count'], x['usage_hours']))
+        least_used = least_used_data[0]
+        
+        self.report_box.insert("end", "--- LEAST USED VEHICLE (by Reservation Count and Usage Hours) ---\n")
+        self.report_box.insert("end", f"{least_used['plate']:<10} {least_used['brand']} {least_used['model']:<25} {least_used['reservation_count']:<15} {least_used['usage_display']:<20} {least_used['total_distance_km']:<25.2f}\n")
+        self.report_box.insert("end", "\n")
+
+        # Full Report Sorted by Distance Traveled (Descending)
+        distance_sorted = sorted(report_data, key=lambda x: x['total_distance_km'], reverse=True)
+        
+        self.report_box.insert("end", "--- All Vehicles Sorted by TOTAL DISTANCE TRAVELED (Highest to Lowest) ---\n")
+        self.report_box.insert("end", header) # Repeat header for readability
+        self.report_box.insert("end", "-"*95 + "\n")
+        
+        for row in distance_sorted:
+             # Truncate the full model for display if too long
+             full_model = f"{row['brand']} {row['model']}"
+             if len(full_model) > 24: full_model = full_model[:21] + "..."
+             
+             self.report_box.insert("end", f"{row['plate']:<10} {full_model:<25} {row['reservation_count']:<15} {row['usage_display']:<20} {row['total_distance_km']:<25.2f}\n")
+            
+        self.report_box.configure(state="disabled")
