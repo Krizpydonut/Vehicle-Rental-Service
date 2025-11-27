@@ -1,3 +1,5 @@
+# vehiclerentalservice/db.py
+
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -94,49 +96,31 @@ def init_db():
 
 # --- NEW FUNCTION: find_or_create_customer ---
 def find_or_create_customer(name, phone, email, license, government_id="N/A"):
-    """
-    Creates a new customer or finds existing one by license/email and REUSES the ID. 
-    Returns CustomerID.
-    """
+    """Creates a new customer or finds existing one by license/email. Returns CustomerID."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # Normalize empty license/email to None for proper SQL NULL handling
-    license_to_check = license.strip() if license else None
-    email_to_check = email.strip() if email else None
+    # Try finding an existing customer by license or email
+    cur.execute("SELECT CustomerID FROM Customer WHERE drivers_license=? OR email=?", (license, email))
+    row = cur.fetchone()
     
-    # 1. Check for existing customer by drivers_license (If a license was provided)
-    if license_to_check:
-        cur.execute("SELECT CustomerID FROM Customer WHERE drivers_license=?", (license_to_check,))
-        row = cur.fetchone()
-        if row:
-            conn.close()
-            # ACTION: Reuse existing ID for returning customer
-            return row[0]
+    if row:
+        conn.close()
+        return row[0]
     
-    # 2. Check for existing customer by email (If an email was provided)
-    if email_to_check:
-        cur.execute("SELECT CustomerID FROM Customer WHERE email=?", (email_to_check,))
-        row = cur.fetchone()
-        if row:
-            conn.close()
-            # ACTION: Reuse existing ID for returning customer
-            return row[0]
-    
-    # 3. If not found by unique keys, create a new customer
+    # If not found, create a new customer
     try:
         cur.execute("""
         INSERT INTO Customer (name, phone, email, drivers_license, government_id)
         VALUES (?, ?, ?, ?, ?)
-        """, (name, phone, email_to_check, license_to_check, government_id))
+        """, (name, phone, email, license, government_id))
         conn.commit()
         customer_id = cur.lastrowid
         conn.close()
         return customer_id
     except sqlite3.IntegrityError:
         conn.close()
-        # Fallback for unexpected integrity error (e.g., if a new unique constraint was added)
-        raise ValueError("A severe database integrity error occurred during customer creation. Check unique fields.")
+        raise ValueError("A customer with this email or driver's license already exists.")
 
 # --- VEHICLE FUNCTIONS (NO CHANGE) ---
 def add_vehicle(model, plate, vtype, rate):
@@ -184,7 +168,11 @@ def get_available_vehicles_by_model(vtype, model):
     conn.close()
     return vehicles
 
-def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso):
+def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso, exclude_res_id=None):
+    """
+    Checks if a vehicle is available for the given period.
+    Now accepts an optional exclude_res_id to ignore the reservation being updated.
+    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
@@ -193,12 +181,19 @@ def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso):
     if available_status is None or available_status[0] == 0:
         conn.close()
         return False
-
-    cur.execute("""
+    
+    sql = """
     SELECT 1 FROM Reservation
     WHERE vehicle_id = ? AND status = 'active' AND
           NOT (end_datetime <= ? OR start_datetime >= ?)
-    """, (vehicle_id, start_dt_iso, end_dt_iso))
+    """
+    params = [vehicle_id, start_dt_iso, end_dt_iso]
+    
+    if exclude_res_id is not None:
+        sql += " AND ReservationID != ?"
+        params.append(exclude_res_id)
+    
+    cur.execute(sql, tuple(params))
     
     has_overlap = cur.fetchone() is not None
     conn.close()
@@ -257,6 +252,64 @@ def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_d
     
     conn.close()
     return res_id, total_cost
+
+def update_reservation_end_date(res_id, new_end_dt_iso):
+    """
+    Updates the end_datetime of an active reservation, recalculates total_cost 
+    and driver_fee, and updates the Payment record.
+    Returns the new total cost.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    
+    # 1. Get current reservation details needed for cost calculation
+    cur.execute("""
+    SELECT vehicle_id, driver_flag, start_datetime
+    FROM Reservation 
+    WHERE ReservationID=? AND status='active'
+    """, (res_id,))
+    row = cur.fetchone()
+    
+    if row is None:
+        conn.close()
+        raise ValueError("Active reservation not found.")
+        
+    vehicle_id, driver_flag, start_dt_iso = row
+    
+    # Convert start datetime to check against new end datetime
+    start_dt = datetime.fromisoformat(start_dt_iso)
+    new_end_dt = datetime.fromisoformat(new_end_dt_iso)
+    
+    if new_end_dt <= start_dt:
+        conn.close()
+        raise ValueError("New return time must be after the original pickup time.")
+    
+    # 2. Check availability against the NEW date
+    # *** FIX APPLIED HERE: Pass res_id to exclude it from the conflict check ***
+    if not is_vehicle_available(vehicle_id, start_dt_iso, new_end_dt_iso, exclude_res_id=res_id):
+        conn.close()
+        raise ValueError("Vehicle is unavailable for the extended period (conflicts with another booking).")
+
+    # 3. Calculate new cost
+    total_cost, driver_fee = calculate_cost(vehicle_id, start_dt_iso, new_end_dt_iso, driver_flag)
+
+    # 4. Update Reservation table
+    cur.execute("""
+    UPDATE Reservation 
+    SET end_datetime=?, total_cost=?, driver_fee=?
+    WHERE ReservationID=?
+    """, (new_end_dt_iso, total_cost, driver_fee, res_id))
+
+    # 5. Update Payment table (for the 'Estimate' record)
+    cur.execute("""
+    UPDATE Payment 
+    SET amount=?
+    WHERE reservation_id=? AND method='Estimate'
+    """, (total_cost, res_id))
+    
+    conn.commit()
+    conn.close()
+    return total_cost
 
 def list_active_reservations():
     """Returns a list of all active reservations (Now uses JOIN for customer name)."""
@@ -420,5 +473,5 @@ def finish_maintenance(mid):
     
     conn.commit()
     conn.close()
-
+    
 init_db()

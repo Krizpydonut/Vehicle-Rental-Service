@@ -122,10 +122,12 @@ class RentTab(BaseTab):
         # --- Register Validation Command ---
         vcmd = (self.register(self.validate_number), '%P')
         
+        # --- Column 0, 1, 2 (Original Reservation Form) ---
         col0 = ctk.CTkFrame(form)
         col0.grid(row=0, column=0, padx=3, pady=3, sticky="nsew") 
         col0.grid_columnconfigure(0, weight=0)
         col0.grid_columnconfigure(1, weight=1)
+        # ... (widgets for col0: Vehicle type, model, select vehicle)
 
         row_index = 0
         
@@ -218,6 +220,45 @@ class RentTab(BaseTab):
         col2.grid_rowconfigure(row_index, weight=1)
         
         self.toggle_driver_fields()
+
+        # --- NEW SECTION: Update Reservation ---
+        
+        
+        update_frame = ctk.CTkFrame(tab)
+        update_frame.pack(padx=5, pady=5, fill="x")
+        update_frame.grid_columnconfigure(0, weight=1)
+        update_frame.grid_columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(update_frame, text="Update Active Reservation (Change Return Date)", 
+                     font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=0, columnspan=2, pady=(5,10))
+
+        # Left Column for Update
+        update_left = ctk.CTkFrame(update_frame)
+        update_left.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        update_left.grid_columnconfigure(0, weight=0)
+        update_left.grid_columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(update_left, text="Reservation ID:").grid(row=0, column=0, padx=5, pady=7, sticky="w")
+        self.update_res_id = ctk.CTkEntry(update_left, placeholder_text="Enter Active Res ID")
+        self.update_res_id.grid(row=0, column=1, padx=5, pady=7, sticky="ew")
+
+        # Right Column for Update
+        update_right = ctk.CTkFrame(update_frame)
+        update_right.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+        update_right.grid_columnconfigure(0, weight=0)
+        update_right.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(update_right, text="New Return Date:").grid(row=0, column=0, padx=5, pady=7, sticky="w")
+        self.update_return_date = DateEntry(update_right, date_pattern="yyyy-mm-dd")
+        self.update_return_date.grid(row=0, column=1, padx=5, pady=7, sticky="ew")
+
+        ctk.CTkLabel(update_right, text="New Return Time:").grid(row=1, column=0, padx=5, pady=7, sticky="w")
+        self.update_return_time = ctk.CTkEntry(update_right, placeholder_text="HH:MM (24h)")
+        self.update_return_time.grid(row=1, column=1, padx=5, pady=7, sticky="ew")
+
+        ctk.CTkButton(update_frame, text="Update Return Date", command=self.handle_update_reservation).grid(row=2, column=0, columnspan=2, pady=10)
+        
+        self.toggle_driver_fields()
         
     def parse_datetime_inputs(self, date_widget, time_entry):
         date_str = date_widget.get_date().isoformat()
@@ -303,17 +344,12 @@ class RentTab(BaseTab):
             return
 
         driver_flag = self.driver_var.get()
-        driver_license = None  # Use None for SQL NULL
-        
+        driver_license = ""
         if not driver_flag:
-            driver_license_text = self.driver_license_entry.get().strip()
-            
-            if not driver_license_text:
+            driver_license = self.driver_license_entry.get().strip()
+            if not driver_license:
                 messagebox.showwarning("Missing", "Customer driving the car: collect driver's license.")
                 return
-            
-            # Pass the actual text if present
-            driver_license = driver_license_text
         
         # OOD: Create Customer Object
         customer = Customer(name, phone, email, driver_license)
@@ -332,6 +368,41 @@ class RentTab(BaseTab):
         self.app_controller.refresh_reservation_list()
         self.app_controller.refresh_calendar_marks()
         self.app_controller.refresh_return_dropdown()
+        
+    def handle_update_reservation(self):
+        res_id_text = self.update_res_id.get().strip()
+        if not res_id_text:
+            messagebox.showwarning("Missing", "Enter Reservation ID to update.")
+            return
+
+        try:
+            res_id = int(res_id_text)
+        except ValueError:
+            messagebox.showerror("Invalid", "Reservation ID must be a number.")
+            return
+
+        try:
+            # Re-use the parser for the new return date/time
+            new_end_dt = self.parse_datetime_inputs(self.update_return_date, self.update_return_time)
+        except Exception as e:
+            messagebox.showerror("Invalid datetime", f"New return datetime: {str(e)}")
+            return
+            
+        try:
+            # OOD: Pass to system controller
+            new_total_cost = self.system.update_reservation_return(res_id, new_end_dt.isoformat())
+            messagebox.showinfo("Updated", 
+                                f"Reservation {res_id} updated. New return datetime: {new_end_dt.strftime('%Y-%m-%d %H:%M')}. "
+                                f"New estimated total cost: {new_total_cost:.2f}")
+            
+            # Refresh related tabs
+            self.app_controller.refresh_reservation_list()
+            self.app_controller.refresh_calendar_marks()
+            
+        except ValueError as ve:
+            messagebox.showerror("Error", str(ve))
+        except Exception as e:
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
 
 class CalendarTab(BaseTab):
     def __init__(self, master, app_controller):
@@ -444,12 +515,11 @@ class ReservationsTab(BaseTab):
         self.reservations_box.insert("end", f"{'ResID':<6} {'PLATE':<10} {'MODEL':<18} {'CUSTOMER':<20} {'FROM':<19} {'TO':<19} {'STATUS':<8}\n")
         self.reservations_box.insert("end", "-"*110 + "\n")
         for row in rows:
-            # FIX: Changed key from 'CUSTOMER' to 'customer_name' to match rental_system.py
             self.reservations_box.insert("end", f"{row['ReservationID']:<6} {row['plate']:<10} {row['model']:<18} {row['customer_name']:<20} {row['start_datetime']:<19} {row['end_datetime']:<19} {row['status']:<8}\n")
         self.reservations_box.configure(state="disabled")
 
 class ReturnTab(BaseTab):
-    def __init__(self, app_controller, master):
+    def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
         self._reservation_map = {} # Initialize the map for ID lookup
         self.build_ui()

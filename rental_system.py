@@ -168,6 +168,10 @@ class VehicleRentalService:
         db.finalize_reservation(rid, final_total)
         
         return base, dmg_total, final_total
+    
+    def update_reservation_return(self, res_id, new_end_iso):
+        """Logic to update the reservation end time and recalculate cost."""
+        return db.update_reservation_end_date(res_id, new_end_iso)
 
     def start_maintenance(self, record: MaintenanceRecord):
         return db.start_maintenance(record.vehicleID, record.checklist, record.cost, record.notes)
