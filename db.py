@@ -553,7 +553,6 @@ def get_location_usage_report():
     rows = cur.fetchall()
     conn.close()
     
-    # Convert results into a list of dictionaries
     results = []
     for location, count in rows:
         results.append({

@@ -1,6 +1,5 @@
 import customtkinter as ctk
 from rental_system import VehicleRentalService
-# Import the base class (needed by RentalApp to access its methods if used)
 from tabs import VehiclesTab, RentTab, CalendarTab, ReservationsTab, ReturnTab, MaintenanceTab, ReportTab
 
 class RentalApp(ctk.CTk):
@@ -39,8 +38,7 @@ class RentalApp(ctk.CTk):
         maintenance_tab = self.tabview.add("Maintenance")
         self.tab_instances["Maintenance"] = MaintenanceTab(master=maintenance_tab, app_controller=self)
         self.tab_instances["Maintenance"].pack(fill="both", expand=True)
-        
-        # --- NEW TAB: Reports ---
+
         reports_tab = self.tabview.add("Reports")
         self.tab_instances["Reports"] = ReportTab(master=reports_tab, app_controller=self)
         self.tab_instances["Reports"].pack(fill="both", expand=True)

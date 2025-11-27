@@ -173,7 +173,6 @@ class VehicleRentalService:
         return base, dmg_total, final_total
     
     def update_reservation_return(self, res_id, new_end_iso):
-        """Logic to update the reservation end time and recalculate cost."""
         return db.update_reservation_end_date(res_id, new_end_iso)
 
     def start_maintenance(self, record: MaintenanceRecord):
@@ -196,7 +195,6 @@ class VehicleRentalService:
     def finish_maintenance(self, mid):
         db.finish_maintenance(mid)
         
-    # --- UPDATED: Report Method ---
     def get_usage_report(self):
         """
         Retrieves vehicle usage, formats total distance traveled, 
@@ -205,18 +203,13 @@ class VehicleRentalService:
         report_data = db.get_vehicle_usage_report()
         
         for item in report_data:
-            # Distance is now retrieved directly from DB (sum of distance_km)
             item['total_distance_km'] = item['total_distance_km']
-            
-            # Convert usage hours to a readable format (Days and Hours)
             hours = item['usage_hours']
             days = int(hours // 24)
             remaining_hours = int(hours % 24)
-            # Use f-string for displayable string
             item['usage_display'] = f"{days} days, {remaining_hours} hours"
             
         return report_data
     
     def get_location_report(self):
-        """Retrieves and formats location usage data."""
         return db.get_location_usage_report()
