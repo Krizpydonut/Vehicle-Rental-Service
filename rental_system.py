@@ -1,22 +1,18 @@
 import db
 from datetime import datetime
 
-# --- Data Objects (DTOs) used by the GUI ---
 class Customer:
     def __init__(self, name, phone, email, drivers_license=None):
         self.name = name
         self.phoneNumber = phone
         self.email = email
-        # Change how we store the license to properly handle None
         self.driversLicense = drivers_license if drivers_license else None
 
 class Vehicle:
     def __init__(self, brand, model, year, plate, vtype, base_price, vehicle_id=None, available=True):
         self.vehicleID = vehicle_id
-        # --- NEW FIELDS ---
         self.brand = brand
         self.year = year
-        # ------------------
         self.model = model
         self.licensePlate = plate
         self.type = vtype
@@ -39,10 +35,8 @@ class MaintenanceRecord:
         self.cost = cost
         self.notes = notes
 
-# --- Main Logic Controller (Wraps db.py) ---
 class VehicleRentalService:
     def __init__(self):
-        # Database initialization is handled in main.py via db.init_db()
         pass
 
     def add_new_vehicle(self, vehicle: Vehicle):
@@ -53,7 +47,6 @@ class VehicleRentalService:
         rows = db.get_all_vehicles()
         result = []
         for r in rows:
-            # UPDATED: db.get_all_vehicles returns (VehicleID, brand, model, year, plate, vtype, daily_rate)
             result.append({
                 "VehicleID": r[0],
                 "brand": r[1],
@@ -87,7 +80,6 @@ class VehicleRentalService:
         return db.get_all_vehicle_list()
 
     def make_reservation(self, vehicle_id, customer: Customer, start_iso, end_iso, driver_flag, location):
-        # 1. Logic Change: Find or Create Customer first using the new db.py function
         customer_id = db.find_or_create_customer(
             customer.name, 
             customer.phoneNumber, 
@@ -95,11 +87,9 @@ class VehicleRentalService:
             customer.driversLicense
         )
         
-        # 2. Check availability
         if not db.is_vehicle_available(vehicle_id, start_iso, end_iso):
              raise ValueError("Vehicle is unavailable for these dates.")
 
-        # 3. Create Reservation
         res_id, total_cost = db.create_reservation(
             vehicle_id, customer_id, driver_flag, start_iso, end_iso, location
         )
@@ -109,7 +99,6 @@ class VehicleRentalService:
         rows = db.list_active_reservations()
         result = []
         for r in rows:
-            # db.list_active_reservations returns (ResID, plate, model, cust_name, start, end, status)
             result.append({
                 "ReservationID": r[0],
                 "plate": r[1],
@@ -150,7 +139,6 @@ class VehicleRentalService:
     def get_reservation_details(self, rid):
         row = db.get_reservation_details(rid)
         if not row: return None
-        # db.get_reservation_details returns detailed joined data
         return {
             "ReservationID": row[0],
             "plate": row[1],
@@ -175,18 +163,15 @@ class VehicleRentalService:
             })
         return result
 
-    def finalize_return(self, rid):
-        # Calculate totals using db logic
+    def finalize_return(self, rid, distance_km):
         base, dmg_total, vid = db.get_final_costs(rid)
         final_total = base + dmg_total
         
-        # Commit updates via db logic
-        db.finalize_reservation(rid, final_total)
+        db.finalize_reservation(rid, final_total, distance_km)
         
         return base, dmg_total, final_total
     
     def update_reservation_return(self, res_id, new_end_iso):
-        """Logic to update the reservation end time and recalculate cost."""
         return db.update_reservation_end_date(res_id, new_end_iso)
 
     def start_maintenance(self, record: MaintenanceRecord):
@@ -208,3 +193,24 @@ class VehicleRentalService:
 
     def finish_maintenance(self, mid):
         db.finish_maintenance(mid)
+        
+    # --- UPDATED: Report Method ---
+    def get_usage_report(self):
+        """
+        Retrieves vehicle usage, formats total distance traveled, 
+        and formats the usage time for the report.
+        """
+        report_data = db.get_vehicle_usage_report()
+        
+        for item in report_data:
+            # Distance is now retrieved directly from DB (sum of distance_km)
+            item['total_distance_km'] = item['total_distance_km']
+            
+            # Convert usage hours to a readable format (Days and Hours)
+            hours = item['usage_hours']
+            days = int(hours // 24)
+            remaining_hours = int(hours % 24)
+            # Use f-string for displayable string
+            item['usage_display'] = f"{days} days, {remaining_hours} hours"
+            
+        return report_data

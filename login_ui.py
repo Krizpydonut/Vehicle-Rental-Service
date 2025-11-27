@@ -1,5 +1,3 @@
-# vehiclerentalservice/login_ui.py
-
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -10,7 +8,6 @@ class LoginWindow(ctk.CTk):
         self.geometry("400x250")
         self.resizable(False, False)
         
-        # Flag to track login status for the main controller
         self.login_successful = False
 
         ctk.CTkLabel(self, text="Please login", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=20)
@@ -20,7 +17,6 @@ class LoginWindow(ctk.CTk):
         self.password_entry = ctk.CTkEntry(self, placeholder_text="Password", show="*")
         self.password_entry.pack(pady=10, padx=40, fill="x")
 
-        # --- Added feature: Bind the Enter key to the handle_login method ---
         self.username_entry.bind('<Return>', lambda event: self.handle_login())
         self.password_entry.bind('<Return>', lambda event: self.handle_login())
         
@@ -37,6 +33,6 @@ class LoginWindow(ctk.CTk):
             return
         if username == self.correct_username and password == self.correct_password:
             self.login_successful = True
-            self.destroy() # Close the login window
+            self.destroy()
         else:
             messagebox.showerror("Login Failed", "Incorrect username or password.")
