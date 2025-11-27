@@ -9,7 +9,6 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # --- Customer Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Customer (
         CustomerID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +20,6 @@ def init_db():
     )
     """)
     
-    # --- UPDATED: Vehicle Table (Added brand, year) ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Vehicle (
         VehicleID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +33,6 @@ def init_db():
     )
     """)
 
-    # --- Reservation Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Reservation (
         ReservationID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,10 +45,20 @@ def init_db():
         driver_fee REAL,
         total_cost REAL,
         status TEXT DEFAULT 'active',
+        distance_km REAL DEFAULT 0.0, -- NEW FIELD ADDED
         FOREIGN KEY(vehicle_id) REFERENCES Vehicle(VehicleID),
         FOREIGN KEY(customer_id) REFERENCES Customer(CustomerID)
     )
     """)
+    
+    try:
+        cur.execute("ALTER TABLE Reservation ADD COLUMN distance_km REAL DEFAULT 0.0")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name: distance_km" in str(e):
+            pass
+        else:
+            print(f"Migration error: {e}")
+
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS DamageContract (
@@ -65,15 +72,14 @@ def init_db():
     )
     """)
 
-    # --- Payment Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Payment (
         PaymentID INTEGER PRIMARY KEY AUTOINCREMENT,
         reservation_id INTEGER,
         amount REAL,
-        status TEXT,  -- e.g., 'pending', 'paid', 'refunded'
-        method TEXT,  -- e.g., 'Estimate', 'Credit Card', 'Cash'
-        frequency TEXT, -- e.g., 'Daily', 'Monthly' (based on UML)
+        status TEXT,
+        method TEXT,
+        frequency TEXT,
         created_at TEXT,
         FOREIGN KEY(reservation_id) REFERENCES Reservation(ReservationID)
     )
@@ -102,26 +108,21 @@ def find_or_create_customer(name, phone, email, license, government_id="N/A"):
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # 1. Attempt to create a new customer record first
     try:
         cur.execute("""
         INSERT INTO Customer (name, phone, email, drivers_license, government_id)
         VALUES (?, ?, ?, ?, ?)
-        """, (name, phone, email, drivers_license_sql, government_id)) # Use drivers_license_sql
+        """, (name, phone, email, drivers_license_sql, government_id)) 
         conn.commit()
         customer_id = cur.lastrowid
         conn.close()
         return customer_id
         
     except sqlite3.IntegrityError:
-        # 2. If INSERT fails (due to duplicate license OR email), perform lookup to reuse.
         if drivers_license_sql:
-            # Search by license OR email (one of them caused the INSERT failure)
             sql = "SELECT CustomerID FROM Customer WHERE drivers_license=? OR email=?"
             params = (drivers_license_sql, email)
         else:
-            # License is NULL: the failure must be due to duplicate email.
-            # Search ONLY by email to find the record to reuse.
             sql = "SELECT CustomerID FROM Customer WHERE email=?"
             params = (email,)
             
@@ -130,7 +131,7 @@ def find_or_create_customer(name, phone, email, license, government_id="N/A"):
         conn.close()
         
         if row:
-            return row[0] # Reuse existing CustomerID
+            return row[0] 
         else:
             raise ValueError("A customer with this email or driver's license already exists, but the record could not be retrieved for reuse.")
     
@@ -138,13 +139,10 @@ def find_or_create_customer(name, phone, email, license, government_id="N/A"):
         conn.close()
         raise e
 
-# --- Vehicle Functions (UPDATED FOR BRAND/YEAR) ---
 def add_vehicle(brand, model, year, plate, vtype, rate):
-    """Adds a new vehicle including brand and year."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cur = conn.cursor()
-        # UPDATED: Added brand, year to INSERT
         cur.execute("INSERT INTO Vehicle (brand, model, year, plate, vtype, daily_rate) VALUES (?, ?, ?, ?, ?, ?)", (brand, model, year, plate, vtype, rate))
         conn.commit()
         conn.close()
@@ -155,10 +153,8 @@ def add_vehicle(brand, model, year, plate, vtype, rate):
         return False, str(e)
 
 def get_all_vehicles():
-    """Returns all vehicle details including brand and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    # UPDATED: Added brand, year to SELECT
     cur.execute("SELECT VehicleID, brand, model, year, plate, vtype, daily_rate FROM Vehicle ORDER BY VehicleID")
     rows = cur.fetchall()
     conn.close()
@@ -173,7 +169,6 @@ def get_vehicle_types():
     return types
 
 def get_brands_by_type(vtype):
-    """NEW: Fetches distinct brands for a selected vehicle type."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT brand FROM Vehicle WHERE vtype=? ORDER BY brand", (vtype,))
@@ -182,16 +177,14 @@ def get_brands_by_type(vtype):
     return brands
 
 def get_years_by_type_and_brand(vtype, brand):
-    """NEW: Fetches distinct years for a selected vehicle type and brand."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT year FROM Vehicle WHERE vtype=? AND brand=? ORDER BY year DESC", (vtype, brand))
-    years = [str(row[0]) for row in cur.fetchall()] # Convert year to string for GUI dropdown
+    years = [str(row[0]) for row in cur.fetchall()]
     conn.close()
     return years
 
 def get_models_by_type_brand_and_year(vtype, brand, year):
-    """UPDATED: Filters models by type, brand, and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT model FROM Vehicle WHERE vtype=? AND brand=? AND year=? ORDER BY model", (vtype, brand, year))
@@ -200,7 +193,6 @@ def get_models_by_type_brand_and_year(vtype, brand, year):
     return models
 
 def get_available_vehicles_by_model(vtype, brand, year, model):
-    """UPDATED: Filters available vehicles by type, brand, year, and model."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT VehicleID, plate FROM Vehicle WHERE vtype=? AND brand=? AND year=? AND model=? AND available=1 ORDER BY plate", (vtype, brand, year, model))
@@ -209,10 +201,6 @@ def get_available_vehicles_by_model(vtype, brand, year, model):
     return vehicles
 
 def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso, exclude_res_id=None):
-    """
-    Checks if a vehicle is available for the given period.
-    Now accepts an optional exclude_res_id to ignore the reservation being updated.
-    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
@@ -240,7 +228,6 @@ def is_vehicle_available(vehicle_id, start_dt_iso, end_dt_iso, exclude_res_id=No
     return not has_overlap
 
 def calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag):
-    """Calculates the estimated total cost."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("SELECT daily_rate FROM Vehicle WHERE VehicleID=?", (vehicle_id,))
@@ -270,9 +257,7 @@ def calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag):
     total_cost = base_cost + driver_fee
     return total_cost, driver_fee
 
-# --- Reservation & Transaction Functions (NO CHANGE) ---
 def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_dt_iso, location):
-    """Creates a new reservation entry and initial payment record."""
     total_cost, driver_fee = calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag)
     
     conn = sqlite3.connect(DB_FILE)
@@ -295,15 +280,9 @@ def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_d
     return res_id, total_cost
 
 def update_reservation_end_date(res_id, new_end_dt_iso):
-    """
-    Updates the end_datetime of an active reservation, recalculates total_cost 
-    and driver_fee, and updates the Payment record.
-    Returns the new total cost.
-    """
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # 1. Get current reservation details needed for cost calculation
     cur.execute("""
     SELECT vehicle_id, driver_flag, start_datetime
     FROM Reservation 
@@ -317,7 +296,6 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
         
     vehicle_id, driver_flag, start_dt_iso = row
     
-    # Convert start datetime to check against new end datetime
     start_dt = datetime.fromisoformat(start_dt_iso)
     new_end_dt = datetime.fromisoformat(new_end_dt_iso)
     
@@ -325,22 +303,18 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
         conn.close()
         raise ValueError("New return time must be after the original pickup time.")
     
-    # 2. Check availability against the NEW date
     if not is_vehicle_available(vehicle_id, start_dt_iso, new_end_dt_iso, exclude_res_id=res_id):
         conn.close()
         raise ValueError("Vehicle is unavailable for the extended period (conflicts with another booking).")
 
-    # 3. Calculate new cost
     total_cost, driver_fee = calculate_cost(vehicle_id, start_dt_iso, new_end_dt_iso, driver_flag)
 
-    # 4. Update Reservation table
     cur.execute("""
     UPDATE Reservation 
     SET end_datetime=?, total_cost=?, driver_fee=?
     WHERE ReservationID=?
     """, (new_end_dt_iso, total_cost, driver_fee, res_id))
 
-    # 5. Update Payment table (for the 'Estimate' record)
     cur.execute("""
     UPDATE Payment 
     SET amount=?
@@ -352,11 +326,11 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
     return total_cost
 
 def list_active_reservations():
-    """Returns a list of all active reservations with customer name and vehicle details."""
+    """Returns a list of all active reservations with customer name, location, and vehicle details."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
-    SELECT r.ReservationID, v.plate, v.model, c.name, r.start_datetime, r.end_datetime, r.status
+    SELECT r.ReservationID, v.plate, v.model, c.name, r.start_datetime, r.end_datetime, r.status, r.location
     FROM Reservation r 
     JOIN Vehicle v ON r.vehicle_id = v.VehicleID
     JOIN Customer c ON r.customer_id = c.CustomerID
@@ -376,7 +350,6 @@ def get_active_reservations_dates():
     return rows
 
 def get_bookings_for_date(start_day_iso, end_day_iso):
-    """Returns reservation details that overlap with a specific date."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
@@ -440,14 +413,15 @@ def get_final_costs(rid):
     base = row[0]
     return base, dmg_total, row[1] 
 
-def finalize_reservation(rid, final_cost):
-    """Marks a reservation as returned and updates the final cost in Reservation and Payment tables."""
+def finalize_reservation(rid, final_cost, distance_km):
+    
     base, dmg_total, vehicle_id = get_final_costs(rid)
     
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    cur.execute("UPDATE Reservation SET status='returned', total_cost=? WHERE ReservationID=?", (final_cost, rid))
+    cur.execute("UPDATE Reservation SET status='returned', total_cost=?, distance_km=? WHERE ReservationID=?", 
+                (final_cost, distance_km, rid))
     
     cur.execute("UPDATE Payment SET amount=?, status='paid', method='Finalized' WHERE reservation_id=?", (final_cost, rid))
 
@@ -455,14 +429,11 @@ def finalize_reservation(rid, final_cost):
     conn.commit()
     conn.close()
 
-# --- Maintenance Functions (UPDATED FOR BRAND/MODEL DISPLAY) ---
 def get_all_vehicle_list():
     """Returns all vehicle details formatted for maintenance dropdown: ID - Plate (Brand Model)."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    # UPDATED: Added brand to SELECT
     cur.execute("SELECT VehicleID, plate, model, brand FROM Vehicle ORDER BY plate")
-    # UPDATED: Format now includes Brand (Model)
     vehs = [f"{vid} - {plate} ({brand} {model})" for vid, plate, model, brand in cur.fetchall()]
     conn.close()
     return vehs
@@ -517,5 +488,79 @@ def finish_maintenance(mid):
     
     conn.commit()
     conn.close()
+
+def get_vehicle_usage_report():
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
     
+    cur.execute("SELECT VehicleID, brand, model, plate FROM Vehicle")
+    all_vehicles = cur.fetchall()
+
+    usage_data = {}
+    for vid, brand, model, plate in all_vehicles:
+        usage_data[vid] = {
+            'vehicle_id': vid,
+            'plate': plate,
+            'brand': brand,
+            'model': model,
+            'usage_hours': 0.0,
+            'reservation_count': 0,
+            'total_distance_km': 0.0
+        }
+        
+    cur.execute("""
+    SELECT 
+        r.vehicle_id, 
+        r.start_datetime, 
+        r.end_datetime,
+        r.distance_km -- NEW: Fetch the actual distance traveled
+    FROM Reservation r 
+    WHERE r.status IN ('active', 'returned')
+    """)
+    
+    reservation_rows = cur.fetchall()
+    conn.close()
+    
+    for vid, start_dt_iso, end_dt_iso, distance_km in reservation_rows:
+        if vid in usage_data:
+            try:
+                start_dt = datetime.fromisoformat(start_dt_iso)
+                end_dt = datetime.fromisoformat(end_dt_iso)
+                
+                duration = end_dt - start_dt
+                duration_hours = duration.total_seconds() / 3600.0
+                
+                usage_data[vid]['usage_hours'] += duration_hours
+                usage_data[vid]['reservation_count'] += 1
+                usage_data[vid]['total_distance_km'] += distance_km or 0.0
+            except Exception:
+                continue
+                
+    return list(usage_data.values())
+
+def get_location_usage_report():
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    
+    cur.execute("""
+    SELECT location, COUNT(ReservationID) AS reservation_count
+    FROM Reservation
+    WHERE status IN ('active', 'returned') AND location IS NOT NULL AND location != ''
+    GROUP BY location
+    ORDER BY reservation_count DESC
+    """)
+    
+    rows = cur.fetchall()
+    conn.close()
+    
+    # Convert results into a list of dictionaries
+    results = []
+    for location, count in rows:
+        results.append({
+            'location': location,
+            'reservation_count': count
+        })
+        
+    return results
+
 init_db()
