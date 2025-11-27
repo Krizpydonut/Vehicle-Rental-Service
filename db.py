@@ -1,5 +1,3 @@
-# vehiclerentalservice/db.py
-
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -7,11 +5,11 @@ DB_FILE = "rental.db"
 DRIVER_FEE_PER_DAY = 500.0 
 
 def init_db():
-    """Initializes the SQLite database tables (UPDATED for Customer and Payment)."""
+    """Initializes the SQLite database tables, updated to include Vehicle brand and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # --- NEW: Customer Table (UML Alignment) ---
+    # --- Customer Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Customer (
         CustomerID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,10 +21,13 @@ def init_db():
     )
     """)
     
+    # --- UPDATED: Vehicle Table (Added brand, year) ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Vehicle (
         VehicleID INTEGER PRIMARY KEY AUTOINCREMENT,
+        brand TEXT,  
         model TEXT,
+        year INTEGER, 
         plate TEXT UNIQUE,
         vtype TEXT,
         daily_rate REAL,
@@ -34,7 +35,7 @@ def init_db():
     )
     """)
 
-    # --- UPDATED: Reservation Table (Links to Customer) ---
+    # --- Reservation Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Reservation (
         ReservationID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +65,7 @@ def init_db():
     )
     """)
 
-    # --- NEW: Payment Table (UML Alignment) ---
+    # --- Payment Table ---
     cur.execute("""
     CREATE TABLE IF NOT EXISTS Payment (
         PaymentID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,40 +95,57 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- NEW FUNCTION: find_or_create_customer ---
+
 def find_or_create_customer(name, phone, email, license, government_id="N/A"):
-    """Creates a new customer or finds existing one by license/email. Returns CustomerID."""
+    drivers_license_sql = license if (license and license.strip() and license != "N/A") else None
+
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     
-    # Try finding an existing customer by license or email
-    cur.execute("SELECT CustomerID FROM Customer WHERE drivers_license=? OR email=?", (license, email))
-    row = cur.fetchone()
-    
-    if row:
-        conn.close()
-        return row[0]
-    
-    # If not found, create a new customer
+    # 1. Attempt to create a new customer record first
     try:
         cur.execute("""
         INSERT INTO Customer (name, phone, email, drivers_license, government_id)
         VALUES (?, ?, ?, ?, ?)
-        """, (name, phone, email, license, government_id))
+        """, (name, phone, email, drivers_license_sql, government_id)) # Use drivers_license_sql
         conn.commit()
         customer_id = cur.lastrowid
         conn.close()
         return customer_id
+        
     except sqlite3.IntegrityError:
+        # 2. If INSERT fails (due to duplicate license OR email), perform lookup to reuse.
+        if drivers_license_sql:
+            # Search by license OR email (one of them caused the INSERT failure)
+            sql = "SELECT CustomerID FROM Customer WHERE drivers_license=? OR email=?"
+            params = (drivers_license_sql, email)
+        else:
+            # License is NULL: the failure must be due to duplicate email.
+            # Search ONLY by email to find the record to reuse.
+            sql = "SELECT CustomerID FROM Customer WHERE email=?"
+            params = (email,)
+            
+        cur.execute(sql, params)
+        row = cur.fetchone()
         conn.close()
-        raise ValueError("A customer with this email or driver's license already exists.")
+        
+        if row:
+            return row[0] # Reuse existing CustomerID
+        else:
+            raise ValueError("A customer with this email or driver's license already exists, but the record could not be retrieved for reuse.")
+    
+    except Exception as e:
+        conn.close()
+        raise e
 
-# --- VEHICLE FUNCTIONS (NO CHANGE) ---
-def add_vehicle(model, plate, vtype, rate):
+# --- Vehicle Functions (UPDATED FOR BRAND/YEAR) ---
+def add_vehicle(brand, model, year, plate, vtype, rate):
+    """Adds a new vehicle including brand and year."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cur = conn.cursor()
-        cur.execute("INSERT INTO Vehicle (model, plate, vtype, daily_rate) VALUES (?, ?, ?, ?)", (model, plate, vtype, rate))
+        # UPDATED: Added brand, year to INSERT
+        cur.execute("INSERT INTO Vehicle (brand, model, year, plate, vtype, daily_rate) VALUES (?, ?, ?, ?, ?, ?)", (brand, model, year, plate, vtype, rate))
         conn.commit()
         conn.close()
         return True, "success"
@@ -137,9 +155,11 @@ def add_vehicle(model, plate, vtype, rate):
         return False, str(e)
 
 def get_all_vehicles():
+    """Returns all vehicle details including brand and year."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("SELECT VehicleID, model, plate, vtype, daily_rate FROM Vehicle ORDER BY VehicleID")
+    # UPDATED: Added brand, year to SELECT
+    cur.execute("SELECT VehicleID, brand, model, year, plate, vtype, daily_rate FROM Vehicle ORDER BY VehicleID")
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -152,18 +172,38 @@ def get_vehicle_types():
     conn.close()
     return types
 
-def get_models_by_type(vtype):
+def get_brands_by_type(vtype):
+    """NEW: Fetches distinct brands for a selected vehicle type."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("SELECT DISTINCT model FROM Vehicle WHERE vtype=? ORDER BY model", (vtype,))
+    cur.execute("SELECT DISTINCT brand FROM Vehicle WHERE vtype=? ORDER BY brand", (vtype,))
+    brands = [row[0] for row in cur.fetchall()]
+    conn.close()
+    return brands
+
+def get_years_by_type_and_brand(vtype, brand):
+    """NEW: Fetches distinct years for a selected vehicle type and brand."""
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT year FROM Vehicle WHERE vtype=? AND brand=? ORDER BY year DESC", (vtype, brand))
+    years = [str(row[0]) for row in cur.fetchall()] # Convert year to string for GUI dropdown
+    conn.close()
+    return years
+
+def get_models_by_type_brand_and_year(vtype, brand, year):
+    """UPDATED: Filters models by type, brand, and year."""
+    conn = sqlite3.connect(DB_FILE)
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT model FROM Vehicle WHERE vtype=? AND brand=? AND year=? ORDER BY model", (vtype, brand, year))
     models = [row[0] for row in cur.fetchall()]
     conn.close()
     return models
 
-def get_available_vehicles_by_model(vtype, model):
+def get_available_vehicles_by_model(vtype, brand, year, model):
+    """UPDATED: Filters available vehicles by type, brand, year, and model."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("SELECT VehicleID, plate FROM Vehicle WHERE vtype=? AND model=? AND available=1 ORDER BY plate", (vtype, model))
+    cur.execute("SELECT VehicleID, plate FROM Vehicle WHERE vtype=? AND brand=? AND year=? AND model=? AND available=1 ORDER BY plate", (vtype, brand, year, model))
     vehicles = [f"{vid} - {plate}" for vid, plate in cur.fetchall()]
     conn.close()
     return vehicles
@@ -230,6 +270,7 @@ def calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag):
     total_cost = base_cost + driver_fee
     return total_cost, driver_fee
 
+# --- Reservation & Transaction Functions (NO CHANGE) ---
 def create_reservation(vehicle_id, customer_id, driver_flag, start_dt_iso, end_dt_iso, location):
     """Creates a new reservation entry and initial payment record."""
     total_cost, driver_fee = calculate_cost(vehicle_id, start_dt_iso, end_dt_iso, driver_flag)
@@ -285,7 +326,6 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
         raise ValueError("New return time must be after the original pickup time.")
     
     # 2. Check availability against the NEW date
-    # *** FIX APPLIED HERE: Pass res_id to exclude it from the conflict check ***
     if not is_vehicle_available(vehicle_id, start_dt_iso, new_end_dt_iso, exclude_res_id=res_id):
         conn.close()
         raise ValueError("Vehicle is unavailable for the extended period (conflicts with another booking).")
@@ -312,7 +352,7 @@ def update_reservation_end_date(res_id, new_end_dt_iso):
     return total_cost
 
 def list_active_reservations():
-    """Returns a list of all active reservations (Now uses JOIN for customer name)."""
+    """Returns a list of all active reservations with customer name and vehicle details."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
@@ -336,7 +376,7 @@ def get_active_reservations_dates():
     return rows
 
 def get_bookings_for_date(start_day_iso, end_day_iso):
-    """Returns reservation details that overlap with a specific date (Now uses JOIN for customer name)."""
+    """Returns reservation details that overlap with a specific date."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
@@ -353,7 +393,7 @@ def get_bookings_for_date(start_day_iso, end_day_iso):
     return rows
 
 def get_reservation_details(rid):
-    """Returns detailed information for a single reservation (Now uses JOIN for customer data)."""
+    """Returns detailed information for a single reservation."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
@@ -415,11 +455,15 @@ def finalize_reservation(rid, final_cost):
     conn.commit()
     conn.close()
 
+# --- Maintenance Functions (UPDATED FOR BRAND/MODEL DISPLAY) ---
 def get_all_vehicle_list():
+    """Returns all vehicle details formatted for maintenance dropdown: ID - Plate (Brand Model)."""
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
-    cur.execute("SELECT VehicleID, plate, model FROM Vehicle ORDER BY plate")
-    vehs = [f"{vid} - {plate} ({model})" for vid, plate, model in cur.fetchall()]
+    # UPDATED: Added brand to SELECT
+    cur.execute("SELECT VehicleID, plate, model, brand FROM Vehicle ORDER BY plate")
+    # UPDATED: Format now includes Brand (Model)
+    vehs = [f"{vid} - {plate} ({brand} {model})" for vid, plate, model, brand in cur.fetchall()]
     conn.close()
     return vehs
 

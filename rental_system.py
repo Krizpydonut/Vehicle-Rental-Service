@@ -7,11 +7,16 @@ class Customer:
         self.name = name
         self.phoneNumber = phone
         self.email = email
-        self.driversLicense = drivers_license
+        # Change how we store the license to properly handle None
+        self.driversLicense = drivers_license if drivers_license else None
 
 class Vehicle:
-    def __init__(self, model, plate, vtype, base_price, vehicle_id=None, available=True):
+    def __init__(self, brand, model, year, plate, vtype, base_price, vehicle_id=None, available=True):
         self.vehicleID = vehicle_id
+        # --- NEW FIELDS ---
+        self.brand = brand
+        self.year = year
+        # ------------------
         self.model = model
         self.licensePlate = plate
         self.type = vtype
@@ -41,31 +46,42 @@ class VehicleRentalService:
         pass
 
     def add_new_vehicle(self, vehicle: Vehicle):
-        return db.add_vehicle(vehicle.model, vehicle.licensePlate, vehicle.type, vehicle.basePrice)
+        return db.add_vehicle(vehicle.brand, vehicle.model, vehicle.year, vehicle.licensePlate, vehicle.type, vehicle.basePrice)
 
     def get_all_vehicles(self):
         """Fetches vehicles and converts tuples to dicts for the GUI."""
         rows = db.get_all_vehicles()
         result = []
         for r in rows:
-            # db.get_all_vehicles returns (VehicleID, model, plate, vtype, daily_rate)
+            # UPDATED: db.get_all_vehicles returns (VehicleID, brand, model, year, plate, vtype, daily_rate)
             result.append({
                 "VehicleID": r[0],
-                "model": r[1],
-                "plate": r[2],
-                "vtype": r[3],
-                "daily_rate": r[4]
+                "brand": r[1],
+                "model": r[2],
+                "year": r[3],
+                "plate": r[4],
+                "vtype": r[5],
+                "daily_rate": r[6]
             })
         return result
 
     def get_vehicle_types(self):
         return db.get_vehicle_types()
+    
+    def get_brands_by_type(self, vtype):
+        return db.get_brands_by_type(vtype)
 
-    def get_models_by_type(self, vtype):
-        return db.get_models_by_type(vtype)
+    def get_years_by_type_and_brand(self, vtype, brand):
+        """NEW: Filters distinct years by type and brand."""
+        return db.get_years_by_type_and_brand(vtype, brand)
+        
+    def get_models_by_type_brand_and_year(self, vtype, brand, year):
+        """UPDATED: Filters models by type, brand, and year."""
+        return db.get_models_by_type_brand_and_year(vtype, brand, year)
 
-    def get_available_vehicles_list(self, vtype, model):
-        return db.get_available_vehicles_by_model(vtype, model)
+    def get_available_vehicles_list(self, vtype, brand, year, model):
+        """UPDATED: Filters available vehicles by type, brand, year, and model."""
+        return db.get_available_vehicles_by_model(vtype, brand, year, model)
     
     def get_all_vehicle_list_fmt(self):
         return db.get_all_vehicle_list()
