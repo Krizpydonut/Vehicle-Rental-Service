@@ -8,17 +8,16 @@ ctk.set_default_color_theme("blue")
 
 def main():
     db.init_db()
-    login = LoginWindow()
-    login.mainloop() 
     
-    if login.login_successful:
-        try:
-            login.withdraw() 
-            login.destroy()
-        except:
-            pass
-        app = RentalApp()
-        app.mainloop()
+    app = RentalApp()
+    app.withdraw()
+    
+    def start_main_app_ui():
+        app.deiconify()
+
+    login = LoginWindow(master=app, on_success_callback=start_main_app_ui)
+    
+    app.mainloop()
 
 if __name__ == "__main__":
     main()
