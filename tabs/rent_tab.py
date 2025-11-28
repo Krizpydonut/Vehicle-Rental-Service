@@ -3,13 +3,15 @@ from tkinter import messagebox
 from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 from rental_system import Customer
-from .base_tab import BaseTab # Import BaseTab
+from .base_tab import BaseTab
 
 class RentTab(BaseTab):
     def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
+        self._reservation_update_map = {}
         self.build_ui()
         self.update_type_dropdown()
+        self.update_reservation_dropdown()
 
     def validate_number(self, P):
         if P == "": 
@@ -152,8 +154,10 @@ class RentTab(BaseTab):
         update_left.grid_columnconfigure(1, weight=1)
         
         ctk.CTkLabel(update_left, text="Reservation ID:").grid(row=0, column=0, padx=5, pady=7, sticky="w")
-        self.update_res_id = ctk.CTkEntry(update_left, placeholder_text="Enter Active Res ID")
-        self.update_res_id.grid(row=0, column=1, padx=5, pady=7, sticky="ew")
+        
+        self.update_res_var = ctk.StringVar()
+        self.update_res_dropdown = ctk.CTkOptionMenu(update_left, variable=self.update_res_var, values=[], width=250)
+        self.update_res_dropdown.grid(row=0, column=1, padx=5, pady=7, sticky="ew")
 
         update_right = ctk.CTkFrame(update_frame)
         update_right.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
@@ -183,6 +187,51 @@ class RentTab(BaseTab):
             return dt
         except Exception as e:
             raise ValueError("Invalid time format. Use HH:MM (24h).")
+
+    def update_reservation_dropdown(self):
+        reservations_full = self.system.get_active_reservations_dropdown_fmt()
+        
+        reservations_display = []
+        self._reservation_update_map = {}
+        
+        for item in reservations_full:
+            parts = item.split(" - ", 1) 
+            if len(parts) > 1:
+                display_text = parts[1]
+                reservations_display.append(display_text)
+                self._reservation_update_map[display_text] = item
+            else:
+                reservations_display.append(item) 
+                self._reservation_update_map[item] = item
+                
+        self.update_res_dropdown.configure(values=reservations_display)
+        
+        if reservations_display:
+            self.update_res_var.set(reservations_display[0])
+        else:
+            self.update_res_var.set("No active reservations")
+            self.update_res_dropdown.configure(values=["No active reservations"])
+            
+
+    def get_selected_update_rid(self):
+        selected_display_text = self.update_res_var.get()
+        
+        if not selected_display_text or "No active reservations" in selected_display_text:
+            messagebox.showwarning("Missing", "Select an active reservation ID to update.")
+            return None
+        
+        full_value = self._reservation_update_map.get(selected_display_text)
+        
+        if not full_value:
+            messagebox.showerror("Invalid", "Could not find reservation details.")
+            return None
+            
+        try:
+            return int(full_value.split(" - ")[0])
+        except Exception:
+            messagebox.showerror("Invalid", "Selected reservation format is invalid.")
+            return None
+
 
     def update_type_dropdown(self, *args):
         types = self.system.get_vehicle_types()
@@ -305,6 +354,7 @@ class RentTab(BaseTab):
         self.app_controller.refresh_reservation_list()
         self.app_controller.refresh_calendar_marks()
         self.app_controller.refresh_return_dropdown()
+        self.update_reservation_dropdown()
         
         if "Reports" in self.app_controller.tab_instances:
             self.app_controller.tab_instances["Reports"].refresh_report()
@@ -316,15 +366,8 @@ class RentTab(BaseTab):
         self.driver_license_entry.delete(0, "end")
         
     def handle_update_reservation(self):
-        res_id_text = self.update_res_id.get().strip()
-        if not res_id_text:
-            messagebox.showwarning("Missing", "Enter Reservation ID to update.")
-            return
-
-        try:
-            res_id = int(res_id_text)
-        except ValueError:
-            messagebox.showerror("Invalid", "Reservation ID must be a number.")
+        res_id = self.get_selected_update_rid()
+        if res_id is None:
             return
 
         try:
@@ -341,6 +384,7 @@ class RentTab(BaseTab):
             
             self.app_controller.refresh_reservation_list()
             self.app_controller.refresh_calendar_marks()
+            self.update_reservation_dropdown()
             if "Reports" in self.app_controller.tab_instances:
                 self.app_controller.tab_instances["Reports"].refresh_report()
             
