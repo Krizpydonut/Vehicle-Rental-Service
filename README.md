@@ -22,30 +22,6 @@ Maintenance: Send vehicles for service, track active maintenance tasks in a sort
 
 Reports: Generate detailed usage reports, including vehicle mileage/time tracking and location popularity, all displayed in sortable tables.
 
-⚙️ Project Structure
-
-The project follows a modular architecture for separation of concerns:
-
-Vehicle-Rental-Service/
-├── main.py             # Application entry point & startup logic.
-├── main_gui.py         # Main CustomTkinter window and tab controller.
-├── login_ui.py         # Handles the login window interface.
-├── rental_system.py    # Business Logic Layer (Intermediary between GUI and DB).
-├── db.py               # Data Persistence Layer (SQLite CRUD operations).
-├── sample.py           # (Assumed) File to load initial data for testing.
-├── rental.db           # SQLite Database file (created on first run).
-└── tabs/               # Python Package containing all UI components.
-    ├── __init__.py     # Makes 'tabs' a package and simplifies imports.
-    ├── base_tab.py     # Base class for all tabs.
-    ├── calendar_tab.py
-    ├── maintenance_tab.py
-    ├── reservations_tab.py
-    ├── report_tab.py
-    ├── rent_tab.py
-    └── vehicles_tab.py
-
-
-
 💻 Setup and Installation
 
 Prerequisites
