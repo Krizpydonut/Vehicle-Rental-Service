@@ -179,16 +179,19 @@ class VehicleRentalService:
         return db.start_maintenance(record.vehicleID, record.checklist, record.cost, record.notes)
 
     def get_active_maintenance(self):
+        """Fetches active maintenance records, including vehicle brand and model."""
         rows = db.get_active_maintenance()
         result = []
         for r in rows:
             result.append({
                 "MaintenanceID": r[0],
                 "plate": r[1],
-                "checklist": r[2],
-                "cost": r[3],
-                "start_date": r[4],
-                "notes": r[5]
+                "brand": r[2],
+                "model": r[3],
+                "checklist": r[4],
+                "cost": r[5],
+                "start_date": r[6],
+                "notes": r[7]
             })
         return result
 

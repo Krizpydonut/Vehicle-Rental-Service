@@ -8,7 +8,7 @@ class MaintenanceTab(BaseTab):
     def __init__(self, master, app_controller):
         super().__init__(master, app_controller)
         self.check_vars = {}
-        self.maintenance_data = []  # Stores the fetched data for sorting
+        self.maintenance_data = []
         self.sort_column = 'MaintenanceID'
         self.sort_reverse = False
         self.build_ui()
@@ -60,43 +60,37 @@ class MaintenanceTab(BaseTab):
         
         ctk.CTkLabel(right, text="Vehicles Currently in Maintenance", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
         
-        # --- Sortable Table Implementation ---
-        
         self.table_container = ctk.CTkFrame(right)
         self.table_container.pack(fill="both", expand=True, padx=10, pady=5)
         self.table_container.grid_columnconfigure(0, weight=1)
 
-        # Header Frame (Row 0)
         header_frame = ctk.CTkFrame(self.table_container, fg_color="transparent")
         header_frame.grid(row=0, column=0, sticky="ew")
         
         headers = [
             ("ID", 'MaintenanceID'), 
             ("Plate", 'plate'), 
+            ("Vehicle", 'model'),
             ("Cost", 'cost'), 
             ("Started", 'start_date')
         ]
         
+        weights = [1, 2, 4, 1, 3] 
+
         for i, (text, key) in enumerate(headers):
             btn = ctk.CTkButton(header_frame, text=text, fg_color="gray", hover_color="#555555",
                                 command=lambda k=key: self.sort_and_display(k))
             btn.grid(row=0, column=i, sticky="ew", padx=(2 if i > 0 else 0, 2), pady=2)
-            # Configure column weights for resizing the headers
-            header_frame.grid_columnconfigure(i, weight=(3 if key in ('plate', 'start_date') else 1))
+            header_frame.grid_columnconfigure(i, weight=weights[i])
 
-        # Scrollable Frame for data rows (Row 1)
         self.scrollable_data_frame = ctk.CTkScrollableFrame(self.table_container, label_text="Active Maintenance List")
         self.scrollable_data_frame.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
         self.table_container.grid_rowconfigure(1, weight=1)
 
-        # Ensure scrollable data columns match header column weights/structure
-        self.scrollable_data_frame.grid_columnconfigure(0, weight=1) # ID
-        self.scrollable_data_frame.grid_columnconfigure(1, weight=3) # PLATE
-        self.scrollable_data_frame.grid_columnconfigure(2, weight=1) # COST
-        self.scrollable_data_frame.grid_columnconfigure(3, weight=3) # STARTED
-        self.scrollable_data_frame.grid_columnconfigure(4, weight=0) # Details button
-
-        # --- Control and Finish UI ---
+        for i, w in enumerate(weights):
+            self.scrollable_data_frame.grid_columnconfigure(i, weight=w)
+        self.scrollable_data_frame.grid_columnconfigure(len(weights), weight=0) 
+        
         ctrl = ctk.CTkFrame(right)
         ctrl.pack(fill="x", padx=10, pady=10)
         ctk.CTkLabel(ctrl, text="Maintenance ID to Finish:").pack(side="left", padx=5)
@@ -114,77 +108,68 @@ class MaintenanceTab(BaseTab):
             self.maint_vehicle_var.set("")
 
     def sort_and_display(self, column_key):
-        """Sorts the maintenance data based on the clicked header and re-displays."""
         
-        # 1. Determine direction
         if self.sort_column == column_key:
             self.sort_reverse = not self.sort_reverse
         else:
             self.sort_column = column_key
             self.sort_reverse = False
 
-        # 2. Sort the data
         if self.maintenance_data:
-            # Function to extract the sorting key, handling types
             if column_key == 'cost':
                 key_func = lambda x: float(x.get(column_key, 0))
-            elif column_key == 'MaintenanceID':
+            elif column_key in ('MaintenanceID', 'year'):
                  key_func = lambda x: int(x.get(column_key, 0))
             elif column_key == 'start_date':
-                # Sort by datetime object for proper chronological order
                 try:
                     key_func = lambda x: datetime.fromisoformat(x.get(column_key, '1970-01-01T00:00:00'))
                 except:
-                    key_func = lambda x: x.get(column_key, '') # Fallback to string sort
+                    key_func = lambda x: x.get(column_key, '')
             else:
-                key_func = lambda x: x.get(column_key, '')
+                key_func = lambda x: (x.get('model', ''), x.get('brand', ''))
                 
             self.maintenance_data.sort(key=key_func, reverse=self.sort_reverse)
-        
-        # 3. Display the sorted data
+
         self._display_maintenance_list()
 
     def _display_maintenance_list(self):
-        """Renders the sorted data into the CTkScrollableFrame."""
-        # Clear existing rows
         for widget in self.scrollable_data_frame.winfo_children():
             widget.destroy()
 
         if not self.maintenance_data:
-            ctk.CTkLabel(self.scrollable_data_frame, text="No vehicles currently in maintenance.").grid(row=0, column=0, columnspan=5, pady=10)
+            ctk.CTkLabel(self.scrollable_data_frame, text="No vehicles currently in maintenance.").grid(row=0, column=0, columnspan=6, pady=10)
             return
 
         for i, row in enumerate(self.maintenance_data):
-            # Alternate background colors for readability
             bg_color = ("#333333" if i % 2 == 0 else "#444444") if ctk.get_appearance_mode() == "Dark" else ("#DDDDDD" if i % 2 == 0 else "#EEEEEE")
-
-            # ID
+            
+            full_vehicle_name = f"{row['brand']} {row['model']}"
+            
             ctk.CTkLabel(self.scrollable_data_frame, text=f"{row['MaintenanceID']}", 
                          anchor="w", fg_color=bg_color).grid(row=i, column=0, sticky="ew", padx=(2, 0), pady=1)
 
-            # Plate
             ctk.CTkLabel(self.scrollable_data_frame, text=f"{row['plate']}", 
                          anchor="w", fg_color=bg_color).grid(row=i, column=1, sticky="ew", padx=2, pady=1)
 
-            # Cost
-            ctk.CTkLabel(self.scrollable_data_frame, text=f"₱{row['cost']:.2f}", 
-                         anchor="e", fg_color=bg_color).grid(row=i, column=2, sticky="ew", padx=2, pady=1)
+            ctk.CTkLabel(self.scrollable_data_frame, text=full_vehicle_name, 
+                         anchor="w", fg_color=bg_color).grid(row=i, column=2, sticky="ew", padx=2, pady=1)
 
-            # Started (date only)
+            ctk.CTkLabel(self.scrollable_data_frame, text=f"₱{row['cost']:.2f}", 
+                         anchor="e", fg_color=bg_color).grid(row=i, column=3, sticky="ew", padx=2, pady=1)
+
             start_date_fmt = row['start_date'][:16].replace("T", " ")
             ctk.CTkLabel(self.scrollable_data_frame, text=start_date_fmt, 
-                         anchor="w", fg_color=bg_color).grid(row=i, column=3, sticky="ew", padx=2, pady=1)
+                         anchor="w", fg_color=bg_color).grid(row=i, column=4, sticky="ew", padx=2, pady=1)
 
-            # Details Button (to show checklist/notes)
             btn = ctk.CTkButton(self.scrollable_data_frame, text="Details", width=60, height=20,
                                 command=lambda r=row: self.show_maintenance_details(r))
-            btn.grid(row=i, column=4, sticky="e", padx=(2, 4), pady=1)
+            btn.grid(row=i, column=5, sticky="e", padx=(2, 4), pady=1)
             
     def show_maintenance_details(self, row):
         """Displays a detailed view of the maintenance record."""
         details = (
             f"Maintenance ID: {row['MaintenanceID']}\n"
-            f"Vehicle Plate: {row['plate']}\n"
+            f"Vehicle: {row['brand']} {row['model']} ({row['plate']})\n"
             f"Start Date: {row['start_date'][:16].replace('T', ' ')}\n"
             f"Cost: ₱{row['cost']:.2f}\n"
             f"-----------------------------------------\n"
@@ -229,7 +214,6 @@ class MaintenanceTab(BaseTab):
             messagebox.showerror("Error", msg)
 
     def refresh_maintenance_list(self):
-        # Fetches data, stores it, and triggers a sort/display
         self.maintenance_data = self.system.get_active_maintenance()
         self.sort_and_display(self.sort_column)
 

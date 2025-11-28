@@ -466,8 +466,10 @@ def get_active_maintenance():
     conn = sqlite3.connect(DB_FILE)
     cur = conn.cursor()
     cur.execute("""
-    SELECT m.MaintenanceID, v.plate, m.checklist, m.cost, m.start_date, m.notes 
-    FROM Maintenance m JOIN Vehicle v ON m.vehicle_id = v.VehicleID
+    SELECT 
+        m.MaintenanceID, v.plate, v.brand, v.model, m.checklist, m.cost, m.start_date, m.notes 
+    FROM Maintenance m 
+    JOIN Vehicle v ON m.vehicle_id = v.VehicleID
     WHERE m.status='active'
     """)
     rows = cur.fetchall()
