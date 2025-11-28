@@ -1,85 +1,73 @@
-🚗 Vehicle Rental Service Management System
+# **🚗 Vehicle Rental Service Management System**
 
 This is a desktop application built using Python and CustomTkinter (CTK) for managing a small-scale vehicle rental business. It handles vehicle registration, customer reservations, tracking maintenance, processing returns (including damages), and generating usage reports.
 
-✨ Features
+## **✨ Features**
 
 The application is structured into several functional tabs for easy management:
 
-Login Interface: Secure access with a hardcoded admin credential (admin/admin123).
+* **Login Interface**: Secure access with a hardcoded admin credential (admin/admin123).  
+* **Vehicles**: Register new vehicles and view/sort the complete fleet list in a table format.  
+* **Rent Vehicle**: Create new reservations, filter available vehicles by type, brand, year, and model, and update return dates for existing reservations.  
+* **Calendar**: Visualize active bookings on a calendar and view reservation details for a specific date.  
+* **Active Reservations**: View and sort a clear list of all ongoing rentals, including customer names and vehicle pickup locations.  
+* **Return / Damage**: Process vehicle returns, record the distance traveled, finalize costs, and log damage contracts.  
+* **Maintenance**: Send vehicles for service, track active maintenance tasks in a sortable table, and mark vehicles as available upon completion.  
+* **Reports**: Generate detailed usage reports, including vehicle mileage/time tracking and location popularity, all displayed in sortable tables.
 
-Vehicles: Register new vehicles and view/sort the complete fleet list in a table format.
+## **⚙️ Project Structure**
 
-Rent Vehicle: Create new reservations, filter available vehicles by type, brand, year, and model, and update return dates for existing reservations.
+The project follows a modular architecture for separation of concerns:
 
-Calendar: Visualize active bookings on a calendar and view reservation details for a specific date.
+Vehicle-Rental-Service/  
+├── main.py             \# Application entry point & startup logic.  
+├── main\_gui.py         \# Main CustomTkinter window and tab controller.  
+├── login\_ui.py         \# Handles the login window interface.  
+├── rental\_system.py    \# Business Logic Layer (Intermediary between GUI and DB).  
+├── db.py               \# Data Persistence Layer (SQLite CRUD operations).  
+├── sample.py           \# (Assumed) File to load initial data for testing.  
+├── rental.db           \# SQLite Database file (created on first run).  
+└── tabs/               \# Python Package containing all UI components.  
+    ├── \_\_init\_\_.py     \# Makes 'tabs' a package and simplifies imports.  
+    ├── base\_tab.py     \# Base class for all tabs.  
+    ├── calendar\_tab.py  
+    ├── maintenance\_tab.py  
+    ├── reservations\_tab.py  
+    ├── report\_tab.py  
+    ├── rent\_tab.py  
+    └── vehicles\_tab.py
 
-Active Reservations: View and sort a clear list of all ongoing rentals, including customer names and vehicle pickup locations.
+## **💻 Setup and Installation**
 
-Return / Damage: Process vehicle returns, record the distance traveled, finalize costs, and log damage contracts.
-
-Maintenance: Send vehicles for service, track active maintenance tasks in a sortable table, and mark vehicles as available upon completion.
-
-Reports: Generate detailed usage reports, including vehicle mileage/time tracking and location popularity, all displayed in sortable tables.
-
-💻 Setup and Installation
-
-Prerequisites
+### **Prerequisites**
 
 You must have Python installed on your system.
 
-Install Required Libraries:
-The application relies on customtkinter (for the GUI) and tkcalendar (for the date picker widget).
+1. Install Required Libraries:  
+   The application relies on customtkinter (for the GUI) and tkcalendar (for the date picker widget).  
+   pip install customtkinter  
+   pip install tkcalendar
 
-pip install customtkinter
-pip install tkcalendar
+### **Running the Application**
 
+1. **Clone the repository** (if hosted on GitHub) or ensure all files are in the same directory structure as shown above.  
+2. **Run the main script:**  
+   python main.py
 
+3. **Login:** Use the default admin credentials:  
+   * **Username:** admin  
+   * **Password:** admin123
 
-Running the Application
-
-Clone the repository (if hosted on GitHub) or ensure all files are in the same directory structure as shown above.
-
-Run the main script:
-
-python main.py
-
-
-
-Login: Use the default admin credentials:
-
-Username: admin
-
-Password: admin123
-
-📊 Core Data Flow Overview
+## **📊 Core Data Flow Overview**
 
 The system uses a 3-tier structure to separate the UI from data access:
 
-Layer
+| Layer | File(s) | Role |
+| :---- | :---- | :---- |
+| **Presentation (GUI)** | main\_gui.py, tabs/\*.py, login\_ui.py | Displays the UI, captures user input, and triggers actions. |
+| **Business Logic** | rental\_system.py | Enforces business rules (e.g., check availability, calculate costs) and translates GUI requests into database commands. |
+| **Data Persistence** | db.py | Handles all interactions with the SQLite database (rental.db), managing connections, tables, and CRUD operations. |
 
-File(s)
+## **🤝 Contribution**
 
-Role
-
-Presentation (GUI)
-
-main_gui.py, tabs/*.py, login_ui.py
-
-Displays the UI, captures user input, and triggers actions.
-
-Business Logic
-
-rental_system.py
-
-Enforces business rules (e.g., check availability, calculate costs) and translates GUI requests into database commands.
-
-Data Persistence
-
-db.py
-
-Handles all interactions with the SQLite database (rental.db), managing connections, tables, and CRUD operations.
-
-🤝 Contribution
-
-If you find any bugs or have suggestions for improvements (e.g., moving to a more secure database, enhancing reports), feel free to open an issue or submit a pull request!
+If you find any bugs or have suggestions for improvements (e.g., moving to a more secure database, enhancing reports), feel free to open an issue or submit a pull request\!
